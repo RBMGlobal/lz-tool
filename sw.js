@@ -3,7 +3,7 @@
    metadata are deliberately NOT cached: stale imagery presented as current is the
    exact failure this tool exists to prevent. With no signal you get the tool, the
    parser, the grid conversions and the compass — on a blank map background. */
-const CACHE = "lz-brief-v3";
+const CACHE = "lz-brief-v4";
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"

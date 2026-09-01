@@ -40,6 +40,7 @@ album — the crew taps the first and swipes, and the swipe *is* the drill-down.
 | 5 | THE POINT | 150 m, with 25 m and 50 m rings |
 | 6 | Detail card | grid in four formats, elevation, slope, imagery age, season note, and the key to the sequence |
 | 7 | Other looks | the same spot from other captures and from Mapbox |
+| 8 | Latest pass | the most recent clear Sentinel-2 image, dated, 6 km across — ground state now |
 
 Every step carries a progress bar, the step name, the span, the grid, a scale bar and
 the imagery provenance — **all of it in bars above and below the picture, never on it.**
@@ -182,6 +183,38 @@ The Mapbox token sits at the top of `index.html` as `MAPBOX_TOKEN`. It is a publ
 domain in the Mapbox account** (Account → Tokens → URL restrictions) before this goes on
 a public GitHub Pages site, or anyone can spend your quota.
 
+## The latest pass — Sentinel-2
+
+Everything above is either years old (Esri, dated) or undated (Mapbox). The eighth image
+is neither: **the most recent clear Sentinel-2 pass over the point**, from ESA's Copernicus
+programme — free and open for commercial use, a new pass every 2–5 days, every scene dated,
+10 m per pixel. It is drawn at the DISTRICT scale (6 km across) and labelled plainly:
+
+    LATEST PASS · 6 km across · Sentinel-2 · 24 Aug 2026 · 8 days old · 10 m/px · cloud ~8%
+    RECENT PASS — GROUND STATE, NOT DETAIL
+
+At 10 m the landing point is one pixel; this image is for **what the ground is doing now**
+— standing water, flooded fields, burnt scrub, how green the bush is, whether the dry
+riverbed on the Esri capture is currently a river. It turns the season note from a rule
+into a photograph. Put it next to the DISTRICT view and the difference between a
+dry-season 2021 capture and this month is obvious.
+
+How it chooses: scenes over the point from the last 60 days come from the public Earth
+Search catalogue, newest first. Each candidate is judged for cloud *over the 6 km window*
+using its coarsest overview (a few KB), and the newest one under 25 % cloud wins; failing
+that, the least cloudy of the first six, unless even that is over 70 % — then the brief
+says *No usable Sentinel-2 pass in the last 60 days (cloud)* rather than sending a picture
+of cloud. Only the chosen scene has full-resolution tiles pulled, straight out of the
+Cloud-Optimised GeoTIFF with range requests: typically 1–3 MB. No key, no library — the
+TIFF reader, the deflate + predictor decode and the UTM→Mercator warp are all inlined.
+
+It is a checkbox above **Build the brief**, on by default and remembered per device.
+Untick it on a bad connection. In the wet season expect "best pass is two weeks old, 30 %
+cloud" — that is still true information. In the dry season it will be days old and clear.
+
+Attribution, carried in the page footer and every LATEST PASS panel: *Contains modified
+Copernicus Sentinel data [year]*.
+
 ## Sending it
 
 **Images and text go as two separate sends.** WhatsApp drops attachments when they
@@ -234,6 +267,12 @@ the page with signal — the offline worker serves the cached copy only when the
 is unreachable. Bump `CACHE` in `sw.js` if a stale shell ever needs forcing out.
 
 ## Changes
+
+**1 Sep 2026 (later)** — the latest pass.
+- New eighth image: the most recent clear **Sentinel-2** pass over the point, dated, 10 m,
+  6 km across, with cloud percentage. Free and open; no key. See *The latest pass* above.
+  CLI: on by default, `--no-sentinel` to skip. Web: checkbox, remembered per device.
+- Google satellite considered and declined on licensing grounds — see NOTICES.md.
 
 **1 Sep 2026** — review pass after first publish.
 - **Fixed: footer scale bar was mislabelled on five of the six image types.** The bar
