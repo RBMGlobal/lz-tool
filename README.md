@@ -90,10 +90,18 @@ the actual clearing, build from there.
 
 ## Location formats it reads
 
-Decimal degrees · degrees-decimal-minutes (`N 09 04.590 E 007 23.916`) · DMS · MGRS at
-any precision (`32P LR 23998 03697`, `32P LR 240 037`) · NMEA (`0904.590N 00723.916E`) ·
-Google and Apple Maps links · `geo:` links · GPX (waypoints, routes, tracks) · KML/KMZ ·
-CoT XML · **TAK data packages** (.zip).
+Decimal degrees (`12.283314, 7.691558`, `12.283314N 7.691558E`, `N 12.283314 E 7.691558`) ·
+labelled (`Lat 12.283314 Long 7.691558`, `LAT: .. LON: ..`, either order) ·
+degrees-decimal-minutes (`N 09 04.590 E 007 23.916`) · degrees and whole minutes
+(`12°17'N 7°41'E`, `N12 17 E007 41`) · DMS (`12°16'59.93"N`, `12 16 59.93 N`,
+`12d16m59.93sN`) · MGRS at any precision (`32P LR 23998 03697`, `32P LR 240 037`) ·
+NMEA (`0904.590N 00723.916E`) · Google and Apple Maps links · `geo:` links · GPX
+(waypoints, routes, tracks) · KML/KMZ · CoT XML · **TAK data packages** (.zip).
+
+A bare pair of numbers is only read as a coordinate when **both carry decimals** —
+`14 30`, `31 08 2026` and `14.30, 12 pax` are a time, a date and a headcount, and a
+whole-degree fix is no use for a landing point anyway. Minutes or seconds of 60 or
+more disqualify a match.
 
 **Text is normalised before anything is matched**, because real messages come from
 phones, Word and copy-paste rather than from a form. Smart quotes (`’ ’’ ′ ″`),
@@ -224,6 +232,28 @@ Flags: `-o DIR`, `--no-dates`, `--no-pdf`, `--no-terrain`, `--lonlat`, `--esri-k
 Replace `index.html` and commit. Everyone gets the new version the next time they open
 the page with signal — the offline worker serves the cached copy only when the network
 is unreachable. Bump `CACHE` in `sw.js` if a stale shell ever needs forcing out.
+
+## Changes
+
+**1 Sep 2026** — review pass after first publish.
+- **Fixed: footer scale bar was mislabelled on five of the six image types.** The bar
+  was clamped to 21 % of the map width but labelled with a round value that spanned
+  33 % — "10 km" drawn at 6.3 km on the AREA view. It is now drawn at the exact length
+  its label says. If you have briefs built before this date, the scale bars on them
+  are wrong; the grid, rings and MGRS were unaffected.
+- Parser: degrees-and-whole-minutes (`12°17'N 7°41'E`), labelled `Lat .. Long ..`,
+  hemisphere-first decimals (`N 12.28 E 7.69`) and ASCII `d m s` now read. `N12 17
+  E007 41` used to come out as 12°N 17°E — a wrong fix rather than no fix.
+- Parser: bare number pairs need decimals on both sides; minutes/seconds must be under
+  60. Stops times, dates and headcounts becoming a landing point.
+- Roughly half the tile requests per brief (native-resolution cap 2.2× → 1.5×; the
+  difference vanishes under JPEG and WhatsApp resizing). Wayback probes go six at a
+  time instead of 48 at once. Failed tiles are retried on the next build rather than
+  remembered as failed.
+- Season rule follows latitude in the tropics: Katsina (12°N) is wet June–September,
+  Port Harcourt (4°N) April–October. Previously one May–October rule for both.
+- "Other looks" no longer includes the capture already used for the main sequence.
+- Sharing one-at-a-time now reports how many actually went.
 
 ## What it does not do
 
