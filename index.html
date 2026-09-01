@@ -111,6 +111,9 @@ h2.sec{font-size:13px;letter-spacing:.09em;text-transform:uppercase;color:var(--
   margin:22px 0 0}
 .hide{display:none!important}
 .pill{font-size:12px;color:var(--dim);margin-top:6px}
+.chk{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--dim);line-height:1.4;cursor:pointer}
+.chk input{width:22px;height:22px;margin:0;flex:none;accent-color:var(--accent)}
+.chk b{color:var(--ink)}
 ul.pts{list-style:none;padding:0;margin:8px 0 0}
 ul.pts li{padding:11px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;
   cursor:pointer;font-size:14px}
@@ -192,7 +195,10 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 0 8px;line
     GPX and KML open in Air Navigation Pro via <b>Share → Open with</b>; the TAK
     package imports in ATAK/WinTAK via <b>Import Manager → Local SD</b>.
     <b>Open in AirNav Pro</b> sets it as a direct-to without any file handling.</div>
-  <div class="row" style="margin-top:14px">
+  <label class="chk" style="margin-top:14px"><input type="checkbox" id="s2on" checked>
+    <span><b>Add the latest Sentinel-2 pass</b> — a recent, dated 10&nbsp;m picture of the
+    ground (water, flooding, burn, how green it is). Not the pad itself. ≈1–3&nbsp;MB.</span></label>
+  <div class="row" style="margin-top:10px">
     <button class="primary" id="build">Build the brief</button>
   </div>
   <div class="prog" id="prog"></div>
@@ -202,7 +208,8 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 0 8px;line
 <div id="out"></div>
 
 <footer>
-  Imagery: Esri World Imagery &amp; Esri Wayback (Maxar/Vantor, Earthstar).
+  Imagery: Esri World Imagery &amp; Esri Wayback (Maxar/Vantor, Earthstar); Mapbox.
+  Latest pass contains modified Copernicus Sentinel data <span id="cyear"></span>.
   Elevation: SRTM.<br>All views north-up. Check imagery dates before you commit.
 </footer>
 </div>
@@ -620,6 +627,151 @@ async function elevation(lat,lon,radius=60){
     return{m:g(1,1),ft:g(1,1)*3.28084,slopeDeg:Math.atan(worst)/DEG,
            slopePct:worst*100,radius}}catch(e){return null}}
 
+
+/* ─────────────────  latest Sentinel-2 pass  ─────────────────
+   Free, open (Copernicus), dated, 10 m. Nothing else in the brief can say what
+   the ground looked like a fortnight ago. Scenes from the public Earth Search
+   STAC; pixels read straight out of the Cloud-Optimised GeoTIFF on AWS Open Data
+   with range requests. No key, no library. Ground state, not detail. */
+const STAC="https://earth-search.aws.element84.com/v1/search";
+const S2_SPAN=6000;
+const fetchT=(url,opt={},ms=40000)=>{const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);
+  return fetch(url,{...opt,signal:c.signal}).finally(()=>clearTimeout(t))};
+
+async function s2Search(lat,lon,days=60,maxCloud=75){
+  const now=new Date(),from=new Date(now.getTime()-days*864e5);
+  const q={collections:["sentinel-2-l2a"],intersects:{type:"Point",coordinates:[lon,lat]},
+    datetime:`${from.toISOString().slice(0,10)}T00:00:00Z/${now.toISOString().slice(0,10)}T23:59:59Z`,
+    limit:40,sortby:[{field:"properties.datetime",direction:"desc"}]};
+  const j=await(await fetchT(STAC,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(q)})).json();
+  const out=[];
+  for(const f of j.features||[]){const p=f.properties||{},a=(f.assets||{}).visual;
+    if(!a||!a["proj:transform"])continue;
+    const cc=p["eo:cloud_cover"]??100;if(cc>maxCloud)continue;
+    const epsg=p["proj:epsg"]||+String(p["proj:code"]||"0").split(":").pop();
+    out.push({id:f.id,dt:new Date(p.datetime),cloud:cc,epsg,transform:a["proj:transform"],href:a.href})}
+  return out}
+
+/* just enough TIFF to pull tiles out of a Sentinel-2 TCI COG */
+class COG{
+  constructor(href){this.href=href;this.buf=null;this.levels=[]}
+  async range(a,b){const r=await fetchT(this.href,{headers:{Range:`bytes=${a}-${b}`}},45000);
+    if(r.status!==206&&r.status!==200)throw new Error("range "+r.status);
+    return new Uint8Array(await r.arrayBuffer())}
+  async ensure(end){if(!this.buf){this.buf=await this.range(0,65535);return}
+    if(end>this.buf.length){const more=await this.range(this.buf.length,end+65535);
+      const nb=new Uint8Array(this.buf.length+more.length);nb.set(this.buf);nb.set(more,this.buf.length);this.buf=nb}}
+  dv(){return new DataView(this.buf.buffer,this.buf.byteOffset,this.buf.byteLength)}
+  async open(){
+    await this.ensure(8);const le=this.buf[0]===0x49;this.le=le;let d=this.dv();
+    if(d.getUint16(2,le)!==42)throw new Error("not a classic TIFF");
+    let off=d.getUint32(4,le);
+    const SZ={1:1,3:2,4:4,12:8,16:8};
+    while(off){
+      await this.ensure(off+2);d=this.dv();const n=d.getUint16(off,le);
+      await this.ensure(off+2+n*12+4);d=this.dv();
+      const tags={};
+      for(let i=0;i<n;i++){const p=off+2+i*12;tags[d.getUint16(p,le)]={typ:d.getUint16(p+2,le),cnt:d.getUint32(p+4,le),p:p+8}}
+      const val=async t=>{const {typ,cnt,p}=t,size=SZ[typ],total=size*cnt;
+        let o=p;if(total>4){o=this.dv().getUint32(p,le);await this.ensure(o+total)}
+        const dd=this.dv(),out=new Array(cnt);
+        for(let i=0;i<cnt;i++){const q=o+i*size;
+          out[i]=typ===1?dd.getUint8(q):typ===3?dd.getUint16(q,le):typ===4?dd.getUint32(q,le):typ===12?dd.getFloat64(q,le):Number(dd.getBigUint64(q,le))}
+        return out};
+      const lv={w:(await val(tags[256]))[0],h:(await val(tags[257]))[0],comp:(await val(tags[259]))[0],
+        tw:(await val(tags[322]))[0],th:(await val(tags[323]))[0],
+        pred:tags[317]?(await val(tags[317]))[0]:1,spp:tags[277]?(await val(tags[277]))[0]:1,
+        offs:await val(tags[324]),cnts:await val(tags[325])};
+      this.levels.push(lv);
+      d=this.dv();off=d.getUint32(off+2+n*12,le)}
+    if(!this.levels.length)throw new Error("no IFDs");return this}
+  async tile(L,tx,ty){
+    const lv=this.levels[L],across=Math.ceil(lv.w/lv.tw),i=ty*across+tx;
+    if(i<0||i>=lv.offs.length||!lv.cnts[i])return null;
+    const raw=await this.range(lv.offs[i],lv.offs[i]+lv.cnts[i]-1);
+    let data=raw;
+    if(lv.comp===8)data=new Uint8Array(await new Response(new Blob([raw]).stream()
+      .pipeThrough(new DecompressionStream("deflate"))).arrayBuffer());
+    else if(lv.comp!==1)throw new Error("TIFF compression "+lv.comp);
+    const {tw,th,spp}=lv;
+    if(lv.pred===2){const row=tw*spp;
+      for(let r=0;r<th;r++){const b=r*row;for(let c=spp;c<row;c++)data[b+c]=(data[b+c]+data[b+c-spp])&255}}
+    const cv=document.createElement("canvas");cv.width=tw;cv.height=th;
+    const id=cv.getContext("2d").createImageData(tw,th),px=id.data;
+    if(spp===3)for(let k=0,j=0;k<tw*th;k++,j+=3){px[k*4]=data[j];px[k*4+1]=data[j+1];px[k*4+2]=data[j+2];px[k*4+3]=255}
+    else for(let k=0;k<tw*th;k++){px[k*4]=px[k*4+1]=px[k*4+2]=data[k];px[k*4+3]=255}
+    cv.getContext("2d").putImageData(id,0,0);return cv}}
+
+/* north-up Web-Mercator square cut from the scene. Finest overview whose tile
+   footprint stays within maxTiles — a full-res 1024 tile is 1-2 MB, so that is
+   the data-budget knob. */
+async function s2Window(scene,lat,lon,spanM,px,maxTiles=2,forceLevel=null,cog=null){
+  const zone=scene.epsg%100,south=scene.epsg>=32700&&scene.epsg<32800;
+  const [a,,c,,e,f]=scene.transform;
+  cog=cog||await new COG(scene.href).open();
+  const [mx,my]=merc(lon,lat),half=spanM/Math.cos(lat*DEG)/2;
+  const srcOf=(u,v)=>{const x=mx-half+(u/px)*2*half,y=my+half-(v/px)*2*half;
+    const lo=x/R_E/DEG,la=(2*Math.atan(Math.exp(y/R_E))-Math.PI/2)/DEG;
+    const ut=utmIn(la,lo,zone,south);return[(ut.e-c)/a,(ut.n-f)/e]};
+  const corners=[[0,0],[px,0],[0,px],[px,px]].map(([u,v])=>srcOf(u,v));
+  const cols=corners.map(s=>s[0]),rows=corners.map(s=>s[1]);
+  let L,sc,tx0,tx1,ty0,ty1;
+  for(L=0;L<cog.levels.length;L++){const lv=cog.levels[L];sc=cog.levels[0].w/lv.w;
+    tx0=Math.floor(Math.min(...cols)/sc/lv.tw);tx1=Math.floor(Math.max(...cols)/sc/lv.tw);
+    ty0=Math.floor(Math.min(...rows)/sc/lv.th);ty1=Math.floor(Math.max(...rows)/sc/lv.th);
+    if(forceLevel!=null?L===forceLevel:((tx1-tx0+1)*(ty1-ty0+1)<=maxTiles||L===cog.levels.length-1))break}
+  const lv=cog.levels[L],across=Math.ceil(lv.w/lv.tw),down=Math.ceil(lv.h/lv.th);
+  tx0=Math.max(0,tx0);tx1=Math.min(across-1,tx1);ty0=Math.max(0,ty0);ty1=Math.min(down-1,ty1);
+  const mos=document.createElement("canvas");mos.width=(tx1-tx0+1)*lv.tw;mos.height=(ty1-ty0+1)*lv.th;
+  const mc=mos.getContext("2d");mc.fillStyle="#000";mc.fillRect(0,0,mos.width,mos.height);
+  const jobs=[];for(let ty=ty0;ty<=ty1;ty++)for(let tx=tx0;tx<=tx1;tx++)
+    jobs.push(cog.tile(L,tx,ty).then(t=>{if(t)mc.drawImage(t,(tx-tx0)*lv.tw,(ty-ty0)*lv.th)}));
+  await Promise.all(jobs);
+  // output(x,y) -> mosaic(col,row) is an affine to sub-pixel accuracy over a few km
+  // (both projections are conformal); canvas wants the inverse, mosaic -> output
+  const m=(u,v)=>{const [cc,rr]=srcOf(u,v);return[cc/sc-tx0*lv.tw,rr/sc-ty0*lv.th]};
+  const [c0,r0]=m(0,0),[c1,r1]=m(px,0),[c2,r2]=m(0,px);
+  const A=(c1-c0)/px,B=(c2-c0)/px,C=c0,D=(r1-r0)/px,E=(r2-r0)/px,F=r0;   // out->mos
+  const det=A*E-B*D,ia=E/det,ib=-B/det,ic=-D/det,id=A/det;                // mos->out
+  const out=document.createElement("canvas");out.width=out.height=px;
+  const o=out.getContext("2d");o.imageSmoothingEnabled=true;o.imageSmoothingQuality="high";
+  o.setTransform(ia,ic,ib,id,-(ia*C+ib*F),-(ic*C+id*F));o.drawImage(mos,0,0);o.setTransform(1,0,0,1,0,0);
+  // how much of the window is cloud / off the scene
+  const sm=document.createElement("canvas");sm.width=sm.height=96;
+  const sx=sm.getContext("2d",{willReadFrequently:true});sx.drawImage(out,0,0,96,96);
+  const d=sx.getImageData(0,0,96,96).data;let cloud=0,nodata=0;
+  for(let i=0;i<d.length;i+=4){const r=d[i],g=d[i+1],b=d[i+2],mn=Math.min(r,g,b),mxx=Math.max(r,g,b);
+    if(!r&&!g&&!b)nodata++;else if(mn>165&&mxx-mn<45)cloud++}
+  return{canvas:out,resM:a*sc,level:L,tiles:(tx1-tx0+1)*(ty1-ty0+1),cloudPct:100*cloud/9216,nodataPct:100*nodata/9216,cog}}
+
+/* WGS84 -> UTM in a given zone (the MGRS code above always picks its own zone) */
+function utmIn(lat,lon,zone,south){const p=lat*DEG,l=lon*DEG,l0=((zone-1)*6-180+3)*DEG,
+  N=A/Math.sqrt(1-E2*Math.sin(p)**2),T=Math.tan(p)**2,C=EP2*Math.cos(p)**2,a=Math.cos(p)*(l-l0),
+  M=A*((1-E2/4-3*E4/64-5*E6/256)*p-(3*E2/8+3*E4/32+45*E6/1024)*Math.sin(2*p)
+    +(15*E4/256+45*E6/1024)*Math.sin(4*p)-(35*E6/3072)*Math.sin(6*p));
+  const e=K0*N*(a+(1-T+C)*a**3/6+(5-18*T+T*T+72*C-58*EP2)*a**5/120)+5e5;
+  let n=K0*(M+N*Math.tan(p)*(a*a/2+(5-T+9*C+4*C*C)*a**4/24+(61-58*T+T*T+600*C-330*EP2)*a**6/720));
+  if(south)n+=1e7;return{e,n}}
+
+/* Judge cloud over the window from the coarsest overview first (a few KB), and
+   only pull full-resolution tiles for the scene actually chosen. */
+async function s2Latest(lat,lon,spanM,px,onStep){
+  let scenes;try{scenes=await s2Search(lat,lon)}catch(e){return null}
+  let best=null;
+  for(const s of scenes.slice(0,6)){
+    if(onStep)onStep(s);
+    let pr;try{const cog=await new COG(s.href).open();
+      pr=await s2Window(s,lat,lon,spanM,96,1,cog.levels.length-1,cog)}catch(e){continue}
+    if(pr.nodataPct>20)continue;                         // window runs off this granule
+    const cand={...s,probe:pr,ageDays:Math.floor((Date.now()-s.dt.getTime())/864e5)};
+    if(pr.cloudPct<25){best=cand;break}                  // recent and clear enough
+    if(!best||pr.cloudPct<best.probe.cloudPct)best=cand}
+  if(!best||best.probe.cloudPct>70)return null;        // a picture of cloud helps nobody
+  try{const w=await s2Window(best,lat,lon,spanM,px,2,null,best.probe.cog);
+    return{...best,...w}}catch(e){return null}}
+const s2Caption=p=>`Sentinel-2 · ${p.dt.getUTCDate()} ${MONS[p.dt.getUTCMonth()][0]+MONS[p.dt.getUTCMonth()].slice(1).toLowerCase()} ${p.dt.getUTCFullYear()} · `+
+  `${p.ageDays<60?p.ageDays+" days old":Math.floor(p.ageDays/30)+" months old"} · ${p.resM.toFixed(0)} m/px · cloud ~${p.cloudPct.toFixed(0)}%`;
+
 /* season comparison — why stale imagery misleads */
 function seasonPhase(lat,month){
   if(Math.abs(lat)<=23.44){
@@ -737,14 +889,17 @@ function stepBar(c,x,y,w,n,i,h){
     c.fillRect(x+k*(seg+gap),y,seg,h)}}
 
 async function step(fix,spanM,px,label,index,total,
-                    {nextSpan,tileUrl,labels,rings,cap,name,step:showStep=true}={}){
-  const m=await fetchMap(fix.lat,fix.lon,spanM,px,{tileUrl:tileUrl||ESRI,labels});
+                    {nextSpan,tileUrl,labels,rings,cap,name,step:showStep=true,image=null,
+                     chipText=null,chipFg="#ffd296",chipBg="rgba(120,60,10,.85)"}={}){
+  const m=image?{canvas:image,upscale:1,effRes:null}
+                :await fetchMap(fix.lat,fix.lon,spanM,px,{tileUrl:tileUrl||ESRI,labels});
   const mc=m.canvas.getContext("2d");
   const frac=nextSpan?nextSpan/spanM:null;
   if(frac)extentBox(mc,px,frac);
   lzMark(mc,px,rings,spanM,frac);
   cardinals(mc,px,0,0);
-  if(m.upscale>2.6)chip(mc,14,px-58,["LIMIT OF AVAILABLE DETAIL — ENLARGED"],
+  if(chipText)chip(mc,14,px-58,[chipText],FN(800,24),chipFg,chipBg);
+  else if(m.upscale>2.6)chip(mc,14,px-58,["LIMIT OF AVAILABLE DETAIL — ENLARGED"],
     FN(800,24),"#ffd296","rgba(120,60,10,.85)");
 
   const k=Math.max(.55,Math.min(1,px/MAP_PX)),sd=Math.max(10,Math.round(SIDE*k)),
@@ -983,13 +1138,28 @@ async function build(){
           adv.mismatch?WARNC:"#9be4b4","left","top",0))}
       add(sh,`${slug(name)}_${DTG}_${total+2}_compare.jpg`,"Other looks — which season matches today")}
 
+    // the latest Sentinel-2 pass — recent, dated, free. Ground state, not detail.
+    let latest=null;
+    if($("s2on").checked){
+      setProg("Looking for the latest Sentinel-2 pass…",95);
+      latest=await s2Latest(f.lat,f.lon,S2_SPAN,MAP_PX,s=>setProg(
+        `Reading Sentinel-2 pass of ${s.dt.toISOString().slice(0,10)}…`,96));
+      if(latest){
+        const lp=await step(f,S2_SPAN,MAP_PX,"LATEST PASS",1,1,{image:latest.canvas,rings:null,
+          cap:s2Caption(latest),name,step:false,chipText:"RECENT PASS — GROUND STATE, NOT DETAIL",
+          chipFg:"#bee6ff",chipBg:"rgba(10,70,110,.85)"});
+        add(lp,`${slug(name)}_${DTG}_${BUILT.length+1}_latest_pass.jpg`,
+            `Latest pass — ${s2Caption(latest)}`)}}
+    const s2line=latest
+      ?`Latest Sentinel-2 pass ${latest.dt.toISOString().slice(0,10)} (${latest.ageDays} days ago), ~${latest.cloudPct.toFixed(0)}% cloud over the area — see LATEST PASS image for current ground state`
+      :($("s2on").checked?"No usable Sentinel-2 pass in the last 60 days (cloud)":"");
     const lines=[`LZ: ${name}`,`DTG ${dtg(false)}`,`MGRS  ${toMGRS(f.lat,f.lon)}`,`DDM   ${ddm(f.lat,f.lon)}`,
       `DD    ${f.lat.toFixed(6)}, ${f.lon.toFixed(6)}`,`DMS   ${dms(f.lat,f.lon)}`,"",
       ter?`Elevation ${ter.m.toFixed(0)} m / ${ter.ft.toFixed(0)} ft AMSL`:"",
       ter?`Slope up to ${ter.slopeDeg.toFixed(1)} deg within ${ter.radius} m`:"",
       `Imagery ${cap.dateStr||"?"} (${ageText(cap.dt)[0]}), ${cap.res||"?"} m/px ${cap.sensor||""}`.trim(),
       others.length?`Other captures held: ${others.slice(0,4).join(", ")}`:"",
-      adv.text,
+      adv.text,s2line,
       `https://maps.google.com/?q=${f.lat.toFixed(6)},${f.lon.toFixed(6)}`,"",
       `${total} views, widest first — swipe through to the point. `+
       "Yellow corners mark what the next view covers."].filter(Boolean).join("\n");
@@ -1471,6 +1641,9 @@ $("exanp").onclick=()=>{
   const name=$("nm").value.trim()||"LANDING POINT";
   location.href=airnavURL(FIX,name,WP_TER)};
 $("build").onclick=build;
+$("cyear").textContent=new Date().getFullYear();
+try{const v=localStorage.getItem("lz.s2");if(v!=null)$("s2on").checked=v==="1"}catch(e){}
+$("s2on").onchange=()=>{try{localStorage.setItem("lz.s2",$("s2on").checked?"1":"0")}catch(e){}};
 /* deep link: ?q=... lets the whole thing be driven from a shortcut */
 (()=>{const q=new URLSearchParams(location.search).get("q");
   if(q){$("inp").value=q;$("inp").dispatchEvent(new Event("input"))}})();
