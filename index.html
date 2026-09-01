@@ -214,7 +214,7 @@ if("serviceWorker" in navigator&&location.protocol.startsWith("http"))
 const A=6378137,F=1/298.257223563,E2=F*(2-F),E4=E2*E2,E6=E4*E2,EP2=E2/(1-E2),K0=.9996;
 const BAND="CDEFGHJKLMNPQRSTUVWX",COL=["ABCDEFGH","JKLMNPQR","STUVWXYZ"],
       ROW="ABCDEFGHJKLMNPQRSTUV",DEG=Math.PI/180;
-const latBand=l=>l>=84?"X":l<-80?"C":BAND[Math.floor((l+80)/8)];
+const latBand=l=>l>=72?"X":l<-80?"C":BAND[Math.floor((l+80)/8)];
 function utmZone(lat,lon){let z=Math.floor((lon+180)/6)+1;
   if(lat>=56&&lat<64&&lon>=3&&lon<12)z=32;
   if(lat>=72&&lat<84&&lon>=0&&lon<42)z=lon<9?31:lon<21?33:lon<33?35:37;return z}
@@ -254,9 +254,9 @@ function fromMGRS(str){const s=String(str).toUpperCase().replace(/[\s_-]+/g,"");
   const h=dig.length/2,mult=10**(5-h),
     east=(ci+1)*1e5+(h?parseInt(dig.slice(0,h),10)*mult:0),
     base=ri*1e5+(h?parseInt(dig.slice(h),10)*mult:0),
-    minLat=BAND.indexOf(band)*8-80,south=minLat<0;
+    minLat=BAND.indexOf(band)*8-80,south=minLat<0,bandH=band==="X"?12:8;
   for(let k=0;k<12;k++){const pt=fromUTM(zone,east,base+k*2e6,south);
-    if(pt.lat>=minLat-.7&&pt.lat<minLat+8.7)return pt}
+    if(pt.lat>=minLat-.7&&pt.lat<minLat+bandH+.7)return pt}
   return null}
 
 /* ─────────────────────────  location parsing  ───────────────────────── */
@@ -271,8 +271,28 @@ const RX={
   ddm:new RegExp(`(?<h1>${HN})?\\s*(?<d1>\\d{1,3})\\s*[°d\\s]\\s*(?<m1>\\d{1,2}[.,]\\d+)\\s*['′]?\\s*(?<h1b>${HN})?\\s*[,;/\\s]+\\s*(?<h2>${HE})?\\s*(?<d2>\\d{1,3})\\s*[°d\\s]\\s*(?<m2>\\d{1,2}[.,]\\d+)\\s*['′]?\\s*(?<h2b>${HE})?`),
   nmea:/\b(\d{2})(\d{2}[.,]\d+)\s*([NSns])\s*[,;/ ]*\s*(\d{3})(\d{2}[.,]\d+)\s*([EWew])\b/,
   ddh:new RegExp(`(${DEC})\\s*°?\\s*(${HN})\\s*[,;/ ]?\\s*(${DEC})\\s*°?\\s*(${HE})`),
-  dd:new RegExp(`(?<![\\d.])(${DEC})\\s*[,;/ ]\\s*(${DEC})(?![\\d.])`)
+  dd:new RegExp(`(?<![\\d.])(${DEC})\\s*[,;/ ]\\s*(${DEC})(?![\\d.])`),
+  // 12°17'N 7°41'E  /  N12 17 E007 41 — whole minutes, no seconds. Needs a degree
+  // mark on both halves or a hemisphere letter on both, or "31 08 2026 12 30" reads as a fix.
+  dm:new RegExp(`(?<h1>${HN})?\\s*(?<d1>\\d{1,3})\\s*(?<g1>°)?\\s*(?<m1>\\d{1,2})(?![.,\\d])\\s*['′]?\\s*(?<h1b>${HN})?\\s*[,;/\\s]+\\s*(?<h2>${HE})?\\s*(?<d2>\\d{1,3})\\s*(?<g2>°)?\\s*(?<m2>\\d{1,2})(?![.,\\d])\\s*['′]?\\s*(?<h2b>${HE})?`),
+  // "Lat 12.283314 Long 7.691558", "LAT: .. LON: ..", either order
+  lab:new RegExp(`\\blat(?:itude)?\\b\\s*[:=]?\\s*(?<lat>${DEC})\\s*°?\\s*[,;/\\s]*\\blo?ng?(?:itude)?\\b\\s*[:=]?\\s*(?<lon>${DEC})`,"i"),
+  labr:new RegExp(`\\blo?ng?(?:itude)?\\b\\s*[:=]?\\s*(?<lon>${DEC})\\s*°?\\s*[,;/\\s]*\\blat(?:itude)?\\b\\s*[:=]?\\s*(?<lat>${DEC})`,"i"),
+  // "N 12.283314 E 7.691558" — hemisphere letter in front
+  ddp:new RegExp(`(?<h1>${HN})\\s*:?\\s*(?<lat>${DEC})\\s*°?\\s*[,;/\\s]*(?<h2>${HE})\\s*:?\\s*(?<lon>${DEC})(?![\\d.])`)
 };
+const hasFrac=x=>/[.,]\d/.test(x);
+// minutes and seconds under 60, and a deg/min match must carry its markers
+function sexaFix(m,kind){
+  const g=m.groups,m1=num(g.m1),m2=num(g.m2),s1=g.s1!=null?num(g.s1):null,s2=g.s2!=null?num(g.s2):null;
+  if([m1,m2,s1,s2].some(v=>v!=null&&!(v>=0&&v<60)))return null;
+  if(kind==="deg/min"){
+    const deg=g.g1&&g.g2,hemi=(g.h1||g.h1b)&&(g.h2||g.h2b);
+    if(!deg&&!hemi)return null}
+  let la=num(g.d1)+m1/60+(s1||0)/3600, lo=num(g.d2)+m2/60+(s2||0)/3600;
+  if(((g.h1b||g.h1||"N").toUpperCase())==="S")la=-la;
+  if(((g.h2b||g.h2||"E").toUpperCase())==="W")lo=-lo;
+  return ok(la,lo)?{lat:la,lon:lo,src:kind}:null}
 /* Real messages arrive from phones, Word and copy-paste: smart quotes, pipes as
    separators, non-breaking spaces, odd degree marks. Normalise once, up front. */
 const SUBS={"\u00a0":" ","\u202f":" ","\u2007":" ","\u2009":" ","\u200a":" ",
@@ -286,7 +306,8 @@ function normalise(t){
   let o=String(t).replace(/[\u00a0\u202f\u2007\u2009\u200a\u2018\u2019\u2032\u02b9\u00b4\u0060\u2035\u201c\u201d\u2033\u02ba\u2036\u00ba\u02da\u2218\u25e6\u2013\u2014\u2212\u2010\u2011|\u00a6]/g,c=>SUBS[c]||c);
   o=o.replace(/\bdeg(?:rees?)?\b/gi,"\u00b0")
      .replace(/(\d)\s*\bmin(?:utes?)?\b/gi,"$1'")
-     .replace(/(\d)\s*\bsec(?:onds?)?\b/gi,'$1"');
+     .replace(/(\d)\s*\bsec(?:onds?)?\b/gi,'$1"')
+     .replace(/(\d)s(?=\s*[NSEW](?![A-Za-z]))/g,'$1"');   // 12d16m59.93sN
   return o}
 
 const num=x=>parseFloat(String(x).replace(",","."));
@@ -300,21 +321,25 @@ function parseText(t){
     return{lat:num(m[1]),lon:num(m[2]),src:"geo: link"};
   if((m=RX.mgrs.exec(t))){const p=fromMGRS(m[1]);
     if(p&&ok(p.lat,p.lon))return{lat:p.lat,lon:p.lon,src:"MGRS "+m[1].toUpperCase()}}
-  for(const[rx,kind]of[[RX.dms,"DMS"],[RX.ddm,"deg/dec-min"]]){
-    if(!(m=rx.exec(t)))continue;
-    const g=m.groups,s1=g.s1?num(g.s1):0,s2=g.s2?num(g.s2):0;
-    let la=num(g.d1)+num(g.m1)/60+s1/3600, lo=num(g.d2)+num(g.m2)/60+s2/3600;
-    if(((g.h1b||g.h1||"N").toUpperCase())==="S")la=-la;
-    if(((g.h2b||g.h2||"E").toUpperCase())==="W")lo=-lo;
-    if(ok(la,lo))return{lat:la,lon:lo,src:kind}}
+  for(const[rx,kind]of[[RX.dms,"DMS"],[RX.ddm,"deg/dec-min"],[RX.dm,"deg/min"]]){
+    const r=new RegExp(rx.source,"g");
+    while((m=r.exec(t))){const f=sexaFix(m,kind);if(f)return f}}
   if((m=RX.nmea.exec(t))){let la=num(m[1])+num(m[2])/60,lo=num(m[4])+num(m[5])/60;
     if(m[3].toUpperCase()==="S")la=-la; if(m[6].toUpperCase()==="W")lo=-lo;
     if(ok(la,lo))return{lat:la,lon:lo,src:"NMEA deg/dec-min"}}
   if((m=RX.ddh.exec(t))){let la=num(m[1]),lo=num(m[3]);
     if(m[2].toUpperCase()==="S")la=-la; if(m[4].toUpperCase()==="W")lo=-lo;
     if(ok(la,lo))return{lat:la,lon:lo,src:"decimal degrees"}}
+  if((m=RX.ddp.exec(t))){let la=num(m.groups.lat),lo=num(m.groups.lon);
+    if(m.groups.h1.toUpperCase()==="S")la=-la; if(m.groups.h2.toUpperCase()==="W")lo=-lo;
+    if(ok(la,lo))return{lat:la,lon:lo,src:"decimal degrees"}}
+  for(const rx of[RX.lab,RX.labr]){if((m=rx.exec(t))&&ok(num(m.groups.lat),num(m.groups.lon)))
+    return{lat:num(m.groups.lat),lon:num(m.groups.lon),src:"labelled lat/long"}}
+  // bare pair: both numbers must carry a fraction — "14 30", "31 08" and "14.30, 12"
+  // are times, dates and headcounts, and a whole-degree fix is no use for an LZ anyway
   const g=new RegExp(RX.dd.source,"g"); let mm;
-  while((mm=g.exec(t))){const a=num(mm[1]),b=num(mm[2]);
+  while((mm=g.exec(t))){if(!hasFrac(mm[1])||!hasFrac(mm[2]))continue;
+    const a=num(mm[1]),b=num(mm[2]);
     if(Math.abs(a)>90&&Math.abs(b)<=90)
       return{lat:b,lon:a,src:"decimal",note:"looked like lon,lat — swapped"};
     if(ok(a,b))return{lat:a,lon:b,src:"decimal degrees"}}
@@ -338,14 +363,9 @@ function findAll(text){
   const rm=G(RX.mgrs);
   while((m=rm.exec(t))){const p=fromMGRS(m[1]);
     if(p)add({lat:p.lat,lon:p.lon,src:"MGRS "+m[1].toUpperCase()},m.index,m.index+m[0].length)}
-  for(const[rx,kind]of[[RX.dms,"DMS"],[RX.ddm,"deg/dec-min"]]){
+  for(const[rx,kind]of[[RX.dms,"DMS"],[RX.ddm,"deg/dec-min"],[RX.dm,"deg/min"]]){
     const r=G(rx);
-    while((m=r.exec(t))){const g=m.groups,
-      s1=g.s1?num(g.s1):0,s2=g.s2?num(g.s2):0;
-      let la=num(g.d1)+num(g.m1)/60+s1/3600, lo=num(g.d2)+num(g.m2)/60+s2/3600;
-      if(((g.h1b||g.h1||"N").toUpperCase())==="S")la=-la;
-      if(((g.h2b||g.h2||"E").toUpperCase())==="W")lo=-lo;
-      add({lat:la,lon:lo,src:kind},m.index,m.index+m[0].length)}}
+    while((m=r.exec(t)))add(sexaFix(m,kind),m.index,m.index+m[0].length)}
   const rn=G(RX.nmea);
   while((m=rn.exec(t))){let la=num(m[1])+num(m[2])/60,lo=num(m[4])+num(m[5])/60;
     if(m[3].toUpperCase()==="S")la=-la; if(m[6].toUpperCase()==="W")lo=-lo;
@@ -354,6 +374,13 @@ function findAll(text){
   while((m=rh.exec(t))){let la=num(m[1]),lo=num(m[3]);
     if(m[2].toUpperCase()==="S")la=-la; if(m[4].toUpperCase()==="W")lo=-lo;
     add({lat:la,lon:lo,src:"decimal degrees"},m.index,m.index+m[0].length)}
+  const rp=G(RX.ddp);
+  while((m=rp.exec(t))){let la=num(m.groups.lat),lo=num(m.groups.lon);
+    if(m.groups.h1.toUpperCase()==="S")la=-la; if(m.groups.h2.toUpperCase()==="W")lo=-lo;
+    add({lat:la,lon:lo,src:"decimal degrees"},m.index,m.index+m[0].length)}
+  for(const rx of[RX.lab,RX.labr]){const r=G(rx);
+    while((m=r.exec(t)))add({lat:num(m.groups.lat),lon:num(m.groups.lon),src:"labelled lat/long"},
+                            m.index,m.index+m[0].length)}
   for(const rx of[RX.urlq,RX.urlat]){const r=G(rx);
     while((m=r.exec(t)))add({lat:num(m[1]),lon:num(m[2]),src:"map link"},
                             m.index,m.index+m[0].length)}
@@ -456,7 +483,9 @@ function loadImg(url,tries=3){
       const im=await new Promise(res=>{queue.push(()=>loadOnce(url).then(res));pump()});
       if(im)return im;
       await new Promise(r=>setTimeout(r,350*(k+1)))}
+    imgCache.delete(url);           // a failure is not remembered — the next build retries it
     return null})();
+  if(imgCache.size>1200)for(const k of [...imgCache.keys()].slice(0,300))imgCache.delete(k);
   imgCache.set(url,p);return p}
 
 const _probeCv=document.createElement("canvas");_probeCv.width=_probeCv.height=32;
@@ -488,7 +517,7 @@ async function fetchMap(lat,lon,spanM,px,{tileUrl=ESRI,labels=false,maxZoom=null
   const spanMerc=spanM/Math.cos(lat*DEG);
   const zmax=maxZoom!=null?maxZoom:await deepestZoom(lat,lon,tileUrl);
   let z=zmax;
-  while(z>0&&spanMerc/(2*ORIGIN)*TILE*2**z>px*2.2)z--;
+  while(z>0&&spanMerc/(2*ORIGIN)*TILE*2**z>px*1.5)z--;
   while(z<zmax&&spanMerc/(2*ORIGIN)*TILE*2**z<px*.85)z++;
   const[pcx,pcy]=toPx(mx,my,z),half=spanMerc/(2*ORIGIN)*TILE*2**z/2;
   const l=pcx-half,t=pcy-half,r=pcx+half,b=pcy+half;
@@ -542,11 +571,14 @@ async function waybackCaptures(lat,lon,zoom=17,scan=48,limit=4){
     const tx=Math.floor(px/TILE),ty=Math.floor(py/TILE);
     // Esri redirects a release to the earlier one holding the same imagery,
     // so a response that did NOT redirect marks a genuinely new capture.
-    const hits=await Promise.all(rels.map(async r=>{
+    // probed a few at a time — a field connection drops a 48-wide burst
+    const probe=async r=>{
       try{const res=await fetch(WB(r.id)(zoom,tx,ty),{method:"HEAD"});
         if(!res.ok)return null;
         const m=res.url.match(/mapserver\/tile\/(\d+)\//i);
-        return{...r,holder:m?+m[1]:r.id}}catch(e){return null}}));
+        return{...r,holder:m?+m[1]:r.id}}catch(e){return null}};
+    const hits=[];
+    for(let i=0;i<rels.length;i+=6)hits.push(...await Promise.all(rels.slice(i,i+6).map(probe)));
     const seen=new Set(),out=[];
     for(const h of hits.filter(Boolean)){
       if(seen.has(h.holder))continue;seen.add(h.holder);out.push(h);
@@ -590,8 +622,10 @@ async function elevation(lat,lon,radius=60){
 
 /* season comparison — why stale imagery misleads */
 function seasonPhase(lat,month){
-  if(Math.abs(lat)<=23.44){const wetN=[5,6,7,8,9,10].includes(month);
-    return(lat>=0?wetN:!wetN)?"wet season":"dry season"}
+  if(Math.abs(lat)<=23.44){
+    const a=Math.abs(lat),wetN=a<8?[4,5,6,7,8,9,10]:a<11?[5,6,7,8,9,10]:[6,7,8,9];
+    const m=lat>=0?month:((month+5)%12)+1;     // southern tropics: shift six months
+    return wetN.includes(m)?"wet season":"dry season"}
   const north=lat>=0,m=north?month:((month+5)%12)+1;
   return[12,1,2].includes(m)?"winter (leaf-off)":[3,4,5].includes(m)?"spring"
     :[6,7,8].includes(m)?"summer (full canopy)":"autumn"}
@@ -629,8 +663,10 @@ function T(c,x,y,s,f,fill=INK,align="left",base="top",sw=3){
 function ellip(c,s,f,max){c.font=f;if(c.measureText(s).width<=max)return s;
   while(s.length>4&&c.measureText(s+"…").width>max)s=s.slice(0,-1);
   return s.replace(/[ ·-]+$/,"")+"…"}
-const roundScale=t=>[10,20,25,50,100,200,250,500,1000,2000,2500,5000,10000,20000,25000,50000,100000]
-  .find(v=>v>=t)||100000;
+const SCALES=[10,20,25,50,100,200,250,500,1000,2000,2500,5000,10000,20000,25000,50000,100000];
+const roundScale=t=>SCALES.find(v=>v>=t)||100000;
+// largest round value not above t — a scale bar must be drawn at the length its label says
+const roundScaleDown=t=>[...SCALES].reverse().find(v=>v<=t)||10;
 
 function scaleBar(c,px,spanM){
   const want=roundScale(spanM/4.5),bp=want/spanM*px,x=26,y=px-34;
@@ -736,7 +772,7 @@ async function step(fix,spanM,px,label,index,total,
   let foot=cap||"";
   if(m.effRes)foot+=" · "+m.effRes.toFixed(2)+" m/px";
   T(c,W-sd,by+18*k,ellip(c,foot,FN(400,fs(22)),px*.52),FN(400,fs(22)),DIMC,"right","top",0);
-  const want=roundScale(spanM*.18),bp=Math.min(px*.21,want/spanM*px),
+  const want=roundScaleDown(spanM*.3),bp=want/spanM*px,
         y0=by+60*k,bh=Math.max(6,Math.round(11*k));
   c.fillStyle=INK;c.fillRect(sd,y0,bp,bh);
   c.fillStyle="#5c6270";c.fillRect(sd,y0,bp/2,bh);
@@ -914,7 +950,7 @@ async function build(){
         `${slug(name)}_${DTG}_${total+1}_detail.jpg`,"Detail card — grid, ground and imagery age");
 
     // other looks at the same spot: Esri's dated captures, plus Mapbox undated
-    const comp=ways.slice(0,3).map(w=>({url:WB(w.holder||w.id),
+    const comp=ways.filter(w=>(w.capture||w.date)!==cap.dateStr).slice(0,3).map(w=>({url:WB(w.holder||w.id),
       label:w.capture||w.date, cap:`Esri · ${w.res||"?"} m/px · ${w.sensor||""}`}));
     if(MAPBOX_TOKEN)comp.push({url:MAPBOX,label:"MAPBOX",
       cap:"Mapbox · capture date not published"});
@@ -1022,8 +1058,8 @@ function shareFiles(files,btn,label){
   const note=$("shnote");
   const fail=msg=>{if(note)note.innerHTML=msg};
   if(!navigator.share){
-    for(const b of BUILT){const a=document.createElement("a");
-      a.href=b.dataUrl;a.download=b.filename;a.click()}
+    for(const b of BUILT){if(!files.includes(b.file))continue;
+      const a=document.createElement("a");a.href=b.dataUrl;a.download=b.filename;a.click()}
     fail("This browser cannot share files — the images have been saved instead.");return}
   if(navigator.canShare&&!navigator.canShare({files})){
     shareOneByOne(files,0,fail);return}
@@ -1033,13 +1069,13 @@ function shareFiles(files,btn,label){
       if(err&&err.name==="AbortError")return;                 // user backed out
       shareOneByOne(files,0,fail)})}
 
-function shareOneByOne(files,i,fail){
-  if(i>=files.length)return;
-  fail("Sharing them one at a time — WhatsApp would not take the whole set. "+
-       "Use <b>Send just this one</b> under each image if any are missed.");
+function shareOneByOne(files,i,fail,sent=0){
+  const n=files.length;
+  if(i>=n){fail(`Sent ${sent} of ${n} one at a time. Any missing: use <b>Send just this one</b> under that image.`);return}
+  fail(`Sharing one at a time — WhatsApp would not take the whole set. Sent ${sent} of ${n}…`);
   navigator.share({files:[files[i]]})
-    .then(()=>setTimeout(()=>shareOneByOne(files,i+1,fail),400))
-    .catch(()=>{})}
+    .then(()=>setTimeout(()=>shareOneByOne(files,i+1,fail,sent+1),400))
+    .catch(()=>fail(`Sent ${sent} of ${n}. The browser stopped the rest — use <b>Send just this one</b> under each remaining image.`))}
 
 /* input handling */
 let tmr=null;
@@ -1071,7 +1107,7 @@ $("pastebtn").onclick=async()=>{
   catch(e){$("perr").textContent="Clipboard blocked — paste into the box instead."}};
 $("filebtn").onclick=()=>$("file").click();
 $("file").onchange=async e=>{
-  const f=e.target.files[0];if(!f)return;
+  const f=e.target.files[0];e.target.value="";if(!f)return;
   $("perr").textContent="";
   const pts=await parseFile(f);
   if(!pts.length){$("perr").textContent="No points found in that file.";return}
