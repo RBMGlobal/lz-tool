@@ -44,8 +44,8 @@ album — the crew taps the first and swipes, and the swipe *is* the drill-down.
 
 Every step carries a progress bar, the step name, the span, the grid, a scale bar and
 the imagery provenance — **all of it in bars above and below the picture, never on it.**
-On the imagery itself there is only the point, N/E/S/W at the edges, and four thin
-yellow corner brackets marking exactly what the next view covers.
+On the imagery itself there is only the landing-point reticle, N/E/S/W at the edges,
+and four thin yellow corner brackets marking exactly what the next view covers.
 
 A **PDF** of the whole set comes out of the CLI. WhatsApp compresses photos but not
 documents, so that is the route to full detail when there is time.
@@ -278,6 +278,16 @@ is unreachable. Bump `CACHE` in `sw.js` if a stale shell ever needs forcing out.
   by resolution only: the panel is always full 10 m, whatever the tile count
   (worst case ≈8 MB instead of ≈3 MB). Sharpness is the point; it is never traded
   for download size again.
+
+**5 Sep 2026 (later)** — reticle, and an imagery-honesty fix.
+- **The landing point is now marked with a thin open-centre red reticle** —
+  telescopic-sight style, four short arms that stop well short of the centre — in
+  place of the magenta dot. Nothing is drawn over the exact point at all; the ground
+  under it stays completely clean. Requested from the field.
+- **Fixed (CLI): the close-up could render entirely as Esri "map data not yet
+  available" filler.** The zoom probe correctly detected where real imagery stops,
+  but the published max-zoom figure was allowed to override it upward. The probe is
+  now authoritative in both directions. The web app never had this fault.
 
 **1 Sep 2026 (later)** — the latest pass.
 - New eighth image: the most recent clear **Sentinel-2** pass over the point, dated, 10 m,

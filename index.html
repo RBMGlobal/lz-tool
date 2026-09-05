@@ -804,7 +804,7 @@ function seasonAdvice(lat,dt){
   return{text:msg,mismatch:true}}
 
 /* ─────────────────────────  drawing  ───────────────────────── */
-const INK="#fff",CASE="#000",LZC="#ff2d95",NEXT="#ffe400",DIMC="#a8b0be",
+const INK="#fff",CASE="#000",LZC="#ff2d95",RETC="#ff2828",NEXT="#ffe400",DIMC="#a8b0be",
       WARNC="#ff8a3c",BGC="#111318",PANC="#1c1f26";
 // one image per step, wide to tight — in WhatsApp the swipe is the drill-down
 const SEQ=[[30000,"AREA"],[6000,"DISTRICT"],[1500,"APPROACH"],
@@ -876,12 +876,14 @@ function lzMark(c,px,ringsM,spanM,innerFrac){
     c.lineWidth=7;c.strokeStyle=CASE;c.beginPath();c.arc(m,m,rp,0,7);c.stroke();
     c.lineWidth=3;c.strokeStyle=LZC;c.beginPath();c.arc(m,m,rp,0,7);c.stroke();
     T(c,m+rp*.707+6,m+rp*.707+6,rm+" m",FN(700,24),LZC,"left","top",4)}
-  // the point itself: a marked dot, not a crosshair. Arms sat straight over the
-  // ground the crew most needs to read.
-  const pr=Math.max(4.5,Math.min(px*.009,10));
-  c.strokeStyle=CASE;c.lineWidth=4;c.beginPath();c.arc(m,m,pr+5,0,7);c.stroke();
-  c.strokeStyle=INK;c.lineWidth=3;c.beginPath();c.arc(m,m,pr+1,0,7);c.stroke();
-  c.fillStyle=LZC;c.beginPath();c.arc(m,m,pr,0,7);c.fill()}
+  // the point itself: a thin open-centre reticle, telescopic-sight style. The
+  // four arms stop short of the centre, so the ground at the exact point stays
+  // completely clean; thin red over a black casing reads on any surface.
+  const k=px/1440,gap=Math.max(7,Math.round(12*k)),arm=Math.max(26,Math.round(46*k));
+  const bar=(x0,y0,x1,y1,col)=>{c.fillStyle=col;c.fillRect(x0,y0,x1-x0,y1-y0)};
+  for(const[h,col,g,a]of[[3,CASE,gap-2,arm+2],[1,RETC,gap,arm]]){
+    bar(m+g,m-h,m+a,m+h+1,col);bar(m-a,m-h,m-g,m+h+1,col);
+    bar(m-h,m+g,m+h+1,m+a,col);bar(m-h,m-a,m+h+1,m-g,col)}}
 
 function chip(c,x,y,lines,f,fill=INK,bg="rgba(0,0,0,.7)",maxW=null){
   c.font=f;const L=maxW?lines.map(s=>ellip(c,s,f,maxW)):lines;
@@ -1015,7 +1017,11 @@ function cardCanvas(fix,name,cap,ter,adv,others){
     FN(400,25),DIMC,"left","top",0);
   roseCanvas(c,IMG_W-SIDE-140,IMG_H-250,72);
   T(c,IMG_W-SIDE-140,IMG_H-130,"ALL VIEWS NORTH-UP",FN(800,22),DIMC,"center","middle",0);
-  c.strokeStyle=LZC;c.lineWidth=5;c.beginPath();c.arc(x+9,IMG_H-167,9,0,7);c.stroke();
+  {const kx=x+10,ky=IMG_H-167;
+   const bar=(x0,y0,x1,y1,col)=>{c.fillStyle=col;c.fillRect(x0,y0,x1-x0,y1-y0)};
+   for(const[h,col,g,a]of[[2,CASE,2,15],[1,RETC,4,13]]){
+     bar(kx+g,ky-h,kx+a,ky+h+1,col);bar(kx-a,ky-h,kx-g,ky+h+1,col);
+     bar(kx-h,ky+g,kx+h+1,ky+a,col);bar(kx-h,ky-a,kx+h+1,ky-g,col)}}
   T(c,x+32,IMG_H-180,"the landing point",FN(800,25),INK,"left","top",0);
   T(c,x,IMG_H-62,`DTG ${dtg(false)}  ·  parsed from ${fix.src||"text"}`,
     FN(400,22),DIMC,"left","top",0);
