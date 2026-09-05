@@ -205,7 +205,9 @@ using its coarsest overview (a few KB), and the newest one under 25 % cloud wins
 that, the least cloudy of the first six, unless even that is over 70 % — then the brief
 says *No usable Sentinel-2 pass in the last 60 days (cloud)* rather than sending a picture
 of cloud. Only the chosen scene has full-resolution tiles pulled, straight out of the
-Cloud-Optimised GeoTIFF with range requests: typically 1–3 MB. No key, no library — the
+Cloud-Optimised GeoTIFF with range requests: typically 2–8 MB depending on where the
+window falls on the imagery's internal tile grid. Always at full 10 m — the level is
+chosen by resolution, never by download size. No key, no library — the
 TIFF reader, the deflate + predictor decode and the UTM→Mercator warp are all inlined.
 
 It is a checkbox above **Build the brief**, on by default and remembered per device.
@@ -267,6 +269,15 @@ the page with signal — the offline worker serves the cached copy only when the
 is unreachable. Bump `CACHE` in `sw.js` if a stale shell ever needs forcing out.
 
 ## Changes
+
+**5 Sep 2026** — latest pass sharpness fix.
+- **Fixed: the LATEST PASS image could come out heavily blurred.** The level chooser
+  capped the download at two tiles; when the 6 km window straddled a corner of the
+  imagery's internal 10.24 km tile grid, both sharp levels needed four tiles, so it
+  silently fell back to a 40–80 m overview — a 10–19× upscale. Levels are now chosen
+  by resolution only: the panel is always full 10 m, whatever the tile count
+  (worst case ≈8 MB instead of ≈3 MB). Sharpness is the point; it is never traded
+  for download size again.
 
 **1 Sep 2026 (later)** — the latest pass.
 - New eighth image: the most recent clear **Sentinel-2** pass over the point, dated, 10 m,
