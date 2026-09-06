@@ -1,0 +1,2207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#22222f">
+<!-- BETA BUILD. Lives at /lz-tool/beta/. The live tool is one level up and is
+     not affected by anything here. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>LZ Brief BETA</title>
+<style>
+:root{
+  /* RBM Global — Full RBM CI.pdf, Colour Values 01. The palette is greys with
+     two accents; there is no yellow in it, which is what the old --accent was.
+     --dim is a lightened brand grey: #7e7e87 on #2c2c3a is 3.0:1, under the 4.5
+     a crew needs in daylight, so the brand grey is kept for tertiary marks only.
+     --warn stays amber: it is a safety signal, not decoration. */
+  --bg:#22222f;        /* RBM near-black         */
+  --panel:#2c2c3a;     /* RBM Dark, PANTONE BlackC — the primary brand colour */
+  --panel2:#363648;    /* one step up, for inputs and secondary buttons       */
+  --line:#3f3f4f;
+  --ink:#f0f0f0;       /* RBM Light              */
+  --dim:#a2a2ad;       /* readable secondary     */
+  --tert:#7e7e87;      /* RBM Grey — tertiary, decorative                     */
+  --accent:#6b8f8f;    /* RBM Teal — fills       */
+  --accent-t:#93b9b9;  /* teal tint, for accent TEXT on a dark ground         */
+  --sand:#e6e0d4;      /* RBM Sand — marks that sit over imagery              */
+  --lz:#ff2d95; --warn:#ff8a3c; --ok:#5fcf87; --r:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* Brand type is Montserrat (body) and Avenir (subtitles); Gotham for titles is
+   licensed and not a web font. No webfont is loaded: this page fetches nothing,
+   and a crew with no signal must still get it. Montserrat if installed, then
+   Avenir Next — which IS the brand subtitle face and ships on every iPhone and
+   iPad — then the platform default. Brand tracking is 20px ~ 0.02em. */
+html,body{margin:0;background:var(--bg);color:var(--ink);letter-spacing:.02em;
+  font:16px/1.45 Montserrat,"Avenir Next",Avenir,"Segoe UI",Roboto,system-ui,
+       -apple-system,BlinkMacSystemFont,sans-serif}
+body{padding:0 0 env(safe-area-inset-bottom)}
+.wrap{max-width:760px;margin:0 auto;padding:0 14px 56px}
+/* Flat, no gradient: the CI forbids gradients and drop shadows on the identity,
+   and the same restraint suits the rest of the page. A hairline separates the
+   sticky header from the content instead. */
+header{position:sticky;top:0;z-index:20;background:var(--bg);
+  border-bottom:1px solid var(--line);
+  padding:calc(env(safe-area-inset-top) + 11px) 14px 11px}
+header .bar{display:flex;align-items:center;gap:11px;max-width:760px;margin:0 auto}
+/* The emblem: three arcs from one centre, sweeping 270/180/90 degrees at the
+   CI's 100/67/30% opacities, drawn in currentColor so it needs no recolouring
+   on any ground. Traced from Icon.pdf, not redrawn by eye. */
+.emb{width:26px;height:26px;flex:none;color:var(--ink)}
+header .wm{font-size:18px;font-weight:700;letter-spacing:.06em;color:var(--ink)}
+header .sep{width:1px;align-self:stretch;background:var(--line);margin:1px 2px}
+header h1{font-size:13px;margin:0;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent-t);font-weight:700;white-space:nowrap}
+header .sub{font-size:12px;color:var(--tert);margin-left:auto;letter-spacing:.02em}
+header .beta{font-size:10px;font-weight:700;letter-spacing:.14em;color:#18181f;
+  background:var(--sand);padding:3px 7px;border-radius:4px;margin-left:8px}
+@media (max-width:560px){header .sub{display:none}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px;margin:12px 0}
+/* map picker */
+.mapwrap{position:relative;border-radius:11px;overflow:hidden;border:1px solid var(--line);
+  background:#1b1b25}
+#map{display:block;width:100%;height:min(62vh,520px);touch-action:none;cursor:crosshair}
+.mapwrap .rdout{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.78);
+  border-radius:9px;padding:7px 10px;font-family:ui-monospace,Menlo,monospace;
+  font-size:12px;line-height:1.5;color:var(--ink);pointer-events:none;max-width:74%}
+.mapwrap .rdout .k{color:var(--dim);font-size:10px;letter-spacing:.07em;
+  font-family:inherit;display:block;margin-bottom:1px}
+.mapwrap .rdout .mg{color:var(--accent-t);font-weight:700;font-size:13.5px}
+.mapwrap .zl{position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.7);
+  border-radius:8px;padding:4px 8px;font-size:11px;color:var(--dim);pointer-events:none}
+.mapwrap .cd{position:absolute;font-size:12px;font-weight:800;color:var(--sand);
+  text-shadow:0 0 5px #000,0 0 5px #000;pointer-events:none}
+.mapwrap .cd.n{top:4px;left:50%;transform:translateX(-50%)}
+.mapwrap .cd.s{bottom:4px;left:50%;transform:translateX(-50%)}
+.mapwrap .cd.w{left:5px;top:50%;transform:translateY(-50%)}
+.mapwrap .cd.e{right:5px;top:50%;transform:translateY(-50%)}
+.zbtns{position:absolute;left:8px;top:34px;display:flex;flex-direction:column;gap:6px}
+.zbtns button{width:44px;height:44px;min-height:44px;padding:0;font-size:22px;
+  background:rgba(0,0,0,.72);flex:none}
+.zbtns button#ztog{font-size:17px;font-weight:800}
+label.lab{display:block;font-size:12px;font-weight:700;letter-spacing:.11em;
+  color:var(--dim);text-transform:uppercase;margin:0 0 7px}
+textarea,input[type=text]{width:100%;background:var(--panel2);color:var(--ink);
+  border:1px solid var(--line);border-radius:10px;padding:12px;font-size:17px;
+  font-family:inherit;resize:vertical}
+textarea{min-height:92px}
+textarea:focus,input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.row{display:flex;gap:9px;flex-wrap:wrap}
+button{font:600 16px/1 inherit;border-radius:11px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--ink);padding:13px 15px;cursor:pointer;
+  min-height:48px;flex:1 1 auto}
+button:active{transform:translateY(1px)}
+button.primary{background:var(--accent);color:#18181f;border-color:var(--accent);
+  font-weight:700;font-size:17px;letter-spacing:.03em}
+button.wa{background:#25d366;border-color:#25d366;color:#04310f;font-weight:800}
+button:disabled{opacity:.45}
+.fix{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:start}
+.coords{display:grid;grid-template-columns:auto 1fr;gap:5px 11px;align-items:baseline;min-width:0}
+.coords dt{font-size:11px;font-weight:800;color:var(--dim);letter-spacing:.07em}
+.coords dd{margin:0;font-family:ui-monospace,Menlo,monospace;font-size:15px;
+  overflow-wrap:anywhere}
+.coords .big{font-size:clamp(16px,4.9vw,21px);color:var(--accent-t);font-weight:700;
+  letter-spacing:.01em;white-space:nowrap}
+@media (max-width:520px){
+  .fix{grid-template-columns:1fr}
+  .fix>div:last-child{display:flex;align-items:center;gap:12px;
+    border-top:1px solid var(--line);padding-top:10px}
+  .rose{width:74px;height:74px}
+  .northnote{margin:0;text-align:left}
+}
+.tapcopy{cursor:pointer}
+.tapcopy:active{color:var(--accent-t)}
+.rose{width:104px;height:104px;flex:none}
+.northnote{font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--tert);
+  text-align:center;margin-top:4px}
+.badge{display:inline-block;font-size:12px;font-weight:700;padding:4px 9px;
+  border-radius:99px;background:var(--panel2);color:var(--dim);margin:2px 4px 2px 0}
+.badge.warn{background:#4a2a0c;color:var(--warn)}
+.badge.ok{background:#16321f;color:var(--ok)}
+.note{font-size:13.5px;color:var(--dim);margin:9px 0 0}
+.note.warn{color:var(--warn)}
+.prev{position:relative;margin:10px 0}
+.prev img{width:100%;display:block;border-radius:10px;border:1px solid var(--line)}
+.prev .c{position:absolute;font-size:11px;font-weight:800;color:var(--sand);
+  text-shadow:0 0 4px #000,0 0 4px #000;pointer-events:none}
+.prev .n{top:-2px;left:50%;transform:translateX(-50%)}
+.prev .s{bottom:-2px;left:50%;transform:translateX(-50%)}
+.prev .w{left:-11px;top:50%;transform:translateY(-50%)}
+.prev .e{right:-11px;top:50%;transform:translateY(-50%)}
+.prog{font-size:14px;color:var(--dim);min-height:20px;margin-top:8px}
+.prog b{color:var(--ink)}
+.bar2{height:6px;background:var(--panel2);border-radius:99px;overflow:hidden;margin-top:8px}
+.bar2 i{display:block;height:100%;background:var(--accent);width:0;transition:width .25s}
+.err{color:var(--warn);font-size:14px;margin-top:8px}
+.hint{font-size:13px;color:var(--dim);margin-top:9px}
+.hint code{background:var(--panel2);padding:1px 5px;border-radius:5px;font-size:12px}
+h2.sec{font-size:13px;letter-spacing:.11em;text-transform:uppercase;color:var(--dim);
+  margin:22px 0 0}
+.hide{display:none!important}
+.pill{font-size:12px;color:var(--dim);margin-top:6px}
+.chk{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--dim);line-height:1.4;cursor:pointer}
+.chk input{width:22px;height:22px;margin:0;flex:none;accent-color:var(--accent)}
+.chk b{color:var(--ink)}
+ul.pts{list-style:none;padding:0;margin:8px 0 0}
+ul.pts li{padding:11px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;
+  cursor:pointer;font-size:14px}
+ul.pts li b{display:block;font-size:15px}
+ul.pts li.sel{border-color:var(--accent);background:rgba(107,143,143,.15)}
+footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 0 8px;line-height:1.6}
+</style>
+</head>
+<body>
+<header><div class="bar"><svg class="emb" viewBox="-52 -52 104 104" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="7.33"><path d="M0 18.38A18.38 18.38 0 1 1 18.38 0" opacity=".67"/><path d="M0 32.94A32.94 32.94 0 0 1 0 -32.94"/><path d="M0 47.09A47.09 47.09 0 0 1 -47.09 0" opacity=".3"/></svg><span class="wm">RBM</span><span class="sep"></span>
+  <h1>LZ Brief</h1><span class="beta">BETA</span>
+  <span class="sub">Landing point imagery</span></div></header>
+<div class="wrap">
+
+<div class="card">
+  <label class="lab" for="inp">Paste the location — any format</label>
+  <textarea id="inp" placeholder="9.0765, 7.3986&#10;32P LR 23998 03697&#10;09°04'35&quot;N 007°23'55&quot;E&#10;maps.google.com/?q=...&#10;…or paste the whole WhatsApp message" autocapitalize="characters" autocomplete="off" spellcheck="false"></textarea>
+  <div class="row" style="margin-top:9px">
+    <button id="pastebtn">Paste from clipboard</button>
+    <button id="filebtn">Open GPX / TAK file</button>
+    <button id="ocrbtn">Read a screen photo</button>
+    <button id="mapbtn">Pick on map</button>
+  </div>
+  <input type="file" id="file" class="hide" accept=".gpx,.kml,.kmz,.cot,.xml,.zip,.txt,image/*">
+  <input type="file" id="ocrfile" class="hide" accept="image/*">
+  <div class="hint">Understands decimal degrees, DMS, degrees-decimal-minutes, MGRS,
+    Google/Apple Maps links, <code>geo:</code> links, GPX, KML and TAK data packages.
+    <b>Read a screen photo</b> reads the coordinates off a photo or screenshot of a drone
+    ground station (TGT preferred over ACFT) — on this device, nothing is uploaded.</div>
+  <div class="err" id="perr"></div>
+</div>
+
+<div class="card hide" id="mapcard">
+  <label class="lab">Pick the point — drag to pan, pinch or +/− to zoom</label>
+  <div class="mapwrap">
+    <canvas id="map"></canvas>
+    <span class="cd n">N</span><span class="cd s">S</span>
+    <span class="cd w">W</span><span class="cd e">E</span>
+    <div class="rdout" id="rdout"></div>
+    <div class="zl" id="zl"></div>
+    <div class="zbtns"><button id="zin">+</button><button id="zout">−</button>
+      <button id="ztog" title="Roads and place names">A</button></div>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <button class="primary" id="usept" disabled>Click the map to choose a point</button>
+    <button id="mapclose">Close map</button>
+  </div>
+  <div class="hint">Satellite with roads and place names — <b>A</b> turns the labels off
+    when they sit over the spot you are picking.
+    Click or tap the map to choose a point; the button then shows the grid you picked.
+    Coordinates in the corner follow the cursor on a laptop, and show what you picked
+    after a tap.</div>
+</div>
+
+<div class="card hide" id="pickcard">
+  <label class="lab">Several points in that file — pick one</label>
+  <ul class="pts" id="pts"></ul>
+</div>
+
+<div class="card hide" id="fixcard">
+  <div class="fix">
+    <dl class="coords" id="cd"></dl>
+    <div>
+      <svg class="rose" viewBox="0 0 100 100" aria-label="compass"></svg>
+      <div class="northnote">ALL VIEWS NORTH-UP</div>
+    </div>
+  </div>
+  <div id="meta" style="margin-top:10px"></div>
+  <div class="prev" id="prevwrap" style="max-width:300px">
+    <span class="c n">N</span><span class="c s">S</span>
+    <span class="c w">W</span><span class="c e">E</span>
+    <img id="quick" alt="">
+  </div>
+  <label class="lab" for="nm" style="margin-top:6px">Name / callsign</label>
+  <input type="text" id="nm" placeholder="e.g. CASEVAC ALPHA" autocapitalize="characters">
+  <label class="lab" style="margin-top:12px">Export the waypoint</label>
+  <div class="row">
+    <button id="exgpx">GPX</button>
+    <button id="exkml">KML</button>
+    <button id="extak">TAK package</button>
+    <button id="exanp">Open in AirNav Pro</button>
+  </div>
+  <div class="hint">Just the point — no imagery needed, so these are instant.
+    GPX and KML open in Air Navigation Pro via <b>Share → Open with</b>; the TAK
+    package imports in ATAK/WinTAK via <b>Import Manager → Local SD</b>.
+    <b>Open in AirNav Pro</b> sets it as a direct-to without any file handling.</div>
+  <label class="chk" style="margin-top:14px"><input type="checkbox" id="s2on" checked>
+    <span><b>Add the latest Sentinel-2 pass</b> — a recent, dated 10&nbsp;m picture of the
+    ground (water, flooding, burn, how green it is). Not the pad itself. ≈2–8&nbsp;MB.</span></label>
+  <div class="row" style="margin-top:10px">
+    <button class="primary" id="build">Build the brief</button>
+  </div>
+  <div class="prog" id="prog"></div>
+  <div class="bar2"><i id="bari"></i></div>
+</div>
+
+<div id="out"></div>
+
+<footer>
+  Imagery: Esri World Imagery &amp; Esri Wayback (Maxar/Vantor, Earthstar); Mapbox.
+  Latest pass contains modified Copernicus Sentinel data <span id="cyear"></span>.
+  Elevation: SRTM.<br>All views north-up. Check imagery dates before you commit.
+</footer>
+</div>
+<script>
+'use strict';
+if("serviceWorker" in navigator&&location.protocol.startsWith("http"))
+  addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+/* ─────────────────────────  MGRS / UTM (WGS84)  ───────────────────────── */
+const A=6378137,F=1/298.257223563,E2=F*(2-F),E4=E2*E2,E6=E4*E2,EP2=E2/(1-E2),K0=.9996;
+const BAND="CDEFGHJKLMNPQRSTUVWX",COL=["ABCDEFGH","JKLMNPQR","STUVWXYZ"],
+      ROW="ABCDEFGHJKLMNPQRSTUV",DEG=Math.PI/180;
+const latBand=l=>l>=72?"X":l<-80?"C":BAND[Math.floor((l+80)/8)];
+function utmZone(lat,lon){let z=Math.floor((lon+180)/6)+1;
+  if(lat>=56&&lat<64&&lon>=3&&lon<12)z=32;
+  if(lat>=72&&lat<84&&lon>=0&&lon<42)z=lon<9?31:lon<21?33:lon<33?35:37;return z}
+function toUTM(lat,lon){const zone=utmZone(lat,lon),p=lat*DEG,l=lon*DEG,
+  l0=((zone-1)*6-180+3)*DEG,N=A/Math.sqrt(1-E2*Math.sin(p)**2),T=Math.tan(p)**2,
+  C=EP2*Math.cos(p)**2,a=Math.cos(p)*(l-l0),
+  M=A*((1-E2/4-3*E4/64-5*E6/256)*p-(3*E2/8+3*E4/32+45*E6/1024)*Math.sin(2*p)
+    +(15*E4/256+45*E6/1024)*Math.sin(4*p)-(35*E6/3072)*Math.sin(6*p));
+  const easting=K0*N*(a+(1-T+C)*a**3/6+(5-18*T+T*T+72*C-58*EP2)*a**5/120)+5e5;
+  let northing=K0*(M+N*Math.tan(p)*(a*a/2+(5-T+9*C+4*C*C)*a**4/24
+    +(61-58*T+T*T+600*C-330*EP2)*a**6/720));
+  if(lat<0)northing+=1e7; return{zone,band:latBand(lat),easting,northing}}
+function fromUTM(zone,easting,northing,south){const y=south?northing-1e7:northing,x=easting-5e5,
+  e1=(1-Math.sqrt(1-E2))/(1+Math.sqrt(1-E2)),M=y/K0,
+  mu=M/(A*(1-E2/4-3*E4/64-5*E6/256)),
+  p1=mu+(3*e1/2-27*e1**3/32)*Math.sin(2*mu)+(21*e1*e1/16-55*e1**4/32)*Math.sin(4*mu)
+    +(151*e1**3/96)*Math.sin(6*mu)+(1097*e1**4/512)*Math.sin(8*mu),
+  C1=EP2*Math.cos(p1)**2,T1=Math.tan(p1)**2,N1=A/Math.sqrt(1-E2*Math.sin(p1)**2),
+  R1=A*(1-E2)/(1-E2*Math.sin(p1)**2)**1.5,D=x/(N1*K0);
+  const lat=p1-(N1*Math.tan(p1)/R1)*(D*D/2-(5+3*T1+10*C1-4*C1*C1-9*EP2)*D**4/24
+    +(61+90*T1+298*C1+45*T1*T1-252*EP2-3*C1*C1)*D**6/720);
+  const lon=(D-(1+2*T1+C1)*D**3/6+(5-2*C1+28*T1-3*C1*C1+8*EP2+24*T1*T1)*D**5/120)/Math.cos(p1);
+  return{lat:lat/DEG,lon:lon/DEG+((zone-1)*6-180+3)}}
+function toMGRS(lat,lon,digits=5){const u=toUTM(lat,lon),set=(u.zone-1)%3,
+  col=COL[set][(Math.floor(u.easting/1e5)-1)%8];
+  let ri=Math.floor(u.northing/1e5)%20; if(u.zone%2===0)ri=(ri+5)%20;
+  const p=10**(5-digits);
+  const e=String(Math.floor((u.easting%1e5)/p)).padStart(digits,"0");
+  const n=String(Math.floor((u.northing%1e5)/p)).padStart(digits,"0");
+  return`${u.zone}${u.band} ${col}${ROW[ri]} ${e} ${n}`}
+function fromMGRS(str){const s=String(str).toUpperCase().replace(/[\s_-]+/g,"");
+  const m=s.match(/^(\d{1,2})([C-HJ-NP-X])([A-HJ-NP-Z])([A-HJ-NP-V])(\d*)$/); if(!m)return null;
+  const zone=+m[1],band=m[2],ci=COL[(zone-1)%3].indexOf(m[3]);
+  let ri=ROW.indexOf(m[4]); const dig=m[5];
+  if(ci<0||ri<0||dig.length%2)return null;
+  if(zone%2===0)ri=(ri+15)%20;
+  const h=dig.length/2,mult=10**(5-h),
+    east=(ci+1)*1e5+(h?parseInt(dig.slice(0,h),10)*mult:0),
+    base=ri*1e5+(h?parseInt(dig.slice(h),10)*mult:0),
+    minLat=BAND.indexOf(band)*8-80,south=minLat<0,bandH=band==="X"?12:8;
+  for(let k=0;k<12;k++){const pt=fromUTM(zone,east,base+k*2e6,south);
+    if(pt.lat>=minLat-.7&&pt.lat<minLat+bandH+.7)return pt}
+  return null}
+
+/* ─────────────────────────  location parsing  ───────────────────────── */
+const DEC="[-+]?\\d{1,3}(?:[.,]\\d+)?", HN="(?<![A-Za-z])[NSns](?![A-Za-z])",
+      HE="(?<![A-Za-z])[EWew](?![A-Za-z])";
+const RX={
+  urlq:new RegExp(`[?&](?:q|ll|daddr|destination|mlat|center)=(${DEC})\\s*,\\s*(${DEC})`,"i"),
+  urlat:new RegExp(`[@!]3?d?(${DEC})[,!]\\s?-?4?d?(${DEC})`),
+  geo:new RegExp(`geo:(${DEC}),(${DEC})`),
+  mgrs:/\b(\d{1,2}\s?[C-HJ-NP-X]\s?[A-HJ-NP-Z]{2}\s?\d{2,10}(?:\s?\d{2,5})?)\b/i,
+  dms:new RegExp(`(?<h1>${HN})?\\s*(?<d1>\\d{1,3})\\s*[°d:\\s]\\s*(?<m1>\\d{1,2})\\s*['′m:\\s]\\s*(?<s1>\\d{1,2}(?:[.,]\\d+)?)(?!\\d)\\s*(?:["″]|'')?\\s*(?<h1b>${HN})?\\s*[,;/\\s]+\\s*(?<h2>${HE})?\\s*(?<d2>\\d{1,3})\\s*[°d:\\s]\\s*(?<m2>\\d{1,2})\\s*['′m:\\s]\\s*(?<s2>\\d{1,2}(?:[.,]\\d+)?)(?!\\d)\\s*(?:["″]|'')?\\s*(?<h2b>${HE})?`),
+  ddm:new RegExp(`(?<h1>${HN})?\\s*(?<d1>\\d{1,3})\\s*[°d\\s]\\s*(?<m1>\\d{1,2}[.,]\\d+)(?!\\d)\\s*['′]?\\s*(?<h1b>${HN})?\\s*[,;/\\s]+\\s*(?<h2>${HE})?\\s*(?<d2>\\d{1,3})\\s*[°d\\s]\\s*(?<m2>\\d{1,2}[.,]\\d+)(?!\\d)\\s*['′]?\\s*(?<h2b>${HE})?`),
+  nmea:/\b(\d{2})(\d{2}[.,]\d+)\s*([NSns])\s*[,;/ ]*\s*(\d{3})(\d{2}[.,]\d+)\s*([EWew])\b/,
+  ddh:new RegExp(`(${DEC})\\s*°?\\s*(${HN})\\s*[,;/ ]?\\s*(${DEC})\\s*°?\\s*(${HE})`),
+  dd:new RegExp(`(?<![\\d.])(${DEC})\\s*[,;/ ]\\s*(${DEC})(?![\\d.])`),
+  // 12°17'N 7°41'E  /  N12 17 E007 41 — whole minutes, no seconds. Needs a degree
+  // mark on both halves or a hemisphere letter on both, or "31 08 2026 12 30" reads as a fix.
+  dm:new RegExp(`(?<h1>${HN})?\\s*(?<d1>\\d{1,3})\\s*(?<g1>°)?\\s*(?<m1>\\d{1,2})(?![.,\\d])\\s*['′]?\\s*(?<h1b>${HN})?\\s*[,;/\\s]+\\s*(?<h2>${HE})?\\s*(?<d2>\\d{1,3})\\s*(?<g2>°)?\\s*(?<m2>\\d{1,2})(?![.,\\d])\\s*['′]?\\s*(?<h2b>${HE})?`),
+  // "Lat 12.283314 Long 7.691558", "LAT: .. LON: ..", either order
+  lab:new RegExp(`\\blat(?:itude)?\\b\\s*[:=]?\\s*(?<lat>${DEC})\\s*°?\\s*[,;/\\s]*\\blo?ng?(?:itude)?\\b\\s*[:=]?\\s*(?<lon>${DEC})`,"i"),
+  labr:new RegExp(`\\blo?ng?(?:itude)?\\b\\s*[:=]?\\s*(?<lon>${DEC})\\s*°?\\s*[,;/\\s]*\\blat(?:itude)?\\b\\s*[:=]?\\s*(?<lat>${DEC})`,"i"),
+  // "N 12.283314 E 7.691558" — hemisphere letter in front
+  ddp:new RegExp(`(?<h1>${HN})\\s*:?\\s*(?<lat>${DEC})\\s*°?\\s*[,;/\\s]*(?<h2>${HE})\\s*:?\\s*(?<lon>${DEC})(?![\\d.])`)
+};
+const hasFrac=x=>/[.,]\d/.test(x);
+// minutes and seconds under 60, and a deg/min match must carry its markers
+function sexaFix(m,kind){
+  const g=m.groups,m1=num(g.m1),m2=num(g.m2),s1=g.s1!=null?num(g.s1):null,s2=g.s2!=null?num(g.s2):null;
+  if([m1,m2,s1,s2].some(v=>v!=null&&!(v>=0&&v<60)))return null;
+  if(kind==="deg/min"){
+    const deg=g.g1&&g.g2,hemi=(g.h1||g.h1b)&&(g.h2||g.h2b);
+    if(!deg&&!hemi)return null}
+  let la=num(g.d1)+m1/60+(s1||0)/3600, lo=num(g.d2)+m2/60+(s2||0)/3600;
+  if(((g.h1b||g.h1||"N").toUpperCase())==="S")la=-la;
+  if(((g.h2b||g.h2||"E").toUpperCase())==="W")lo=-lo;
+  return ok(la,lo)?{lat:la,lon:lo,src:kind}:null}
+/* Real messages arrive from phones, Word and copy-paste: smart quotes, pipes as
+   separators, non-breaking spaces, odd degree marks. Normalise once, up front. */
+const SUBS={"\u00a0":" ","\u202f":" ","\u2007":" ","\u2009":" ","\u200a":" ",
+  "\u2018":"'","\u2019":"'","\u2032":"'","\u02b9":"'","\u00b4":"'","\u0060":"'","\u2035":"'",
+  "\u201c":'"',"\u201d":'"',"\u2033":'"',"\u02ba":'"',"\u2036":'"',
+  "\u00ba":"\u00b0","\u02da":"\u00b0","\u2218":"\u00b0","\u25e6":"\u00b0",
+  "\u2013":"-","\u2014":"-","\u2212":"-","\u2010":"-","\u2011":"-",
+  "|":",","\u00a6":","};
+function normalise(t){
+  if(!t)return"";
+  let o=String(t).replace(/[\u00a0\u202f\u2007\u2009\u200a\u2018\u2019\u2032\u02b9\u00b4\u0060\u2035\u201c\u201d\u2033\u02ba\u2036\u00ba\u02da\u2218\u25e6\u2013\u2014\u2212\u2010\u2011|\u00a6]/g,c=>SUBS[c]||c);
+  o=o.replace(/\bdeg(?:rees?)?\b/gi,"\u00b0")
+     .replace(/(\d)\s*\bmin(?:utes?)?\b/gi,"$1'")
+     .replace(/(\d)\s*\bsec(?:onds?)?\b/gi,'$1"')
+     .replace(/(\d)s(?=\s*[NSEW](?![A-Za-z]))/g,'$1"');   // 12d16m59.93sN
+  return o}
+
+const num=x=>parseFloat(String(x).replace(",","."));
+const ok=(la,lo)=>Math.abs(la)<=90&&Math.abs(lo)<=180&&!(Math.abs(la)<1e-9&&Math.abs(lo)<1e-9);
+
+function parseText(t){
+  if(!t)return null; t=normalise(t).trim();
+  let m=RX.urlq.exec(t)||RX.urlat.exec(t);
+  if(m&&ok(num(m[1]),num(m[2])))return{lat:num(m[1]),lon:num(m[2]),src:"map link"};
+  if((m=RX.geo.exec(t))&&ok(num(m[1]),num(m[2])))
+    return{lat:num(m[1]),lon:num(m[2]),src:"geo: link"};
+  if((m=RX.mgrs.exec(t))){const p=fromMGRS(m[1]);
+    if(p&&ok(p.lat,p.lon))return{lat:p.lat,lon:p.lon,src:"MGRS "+m[1].toUpperCase()}}
+  for(const[rx,kind]of[[RX.dms,"DMS"],[RX.ddm,"deg/dec-min"],[RX.dm,"deg/min"]]){
+    const r=new RegExp(rx.source,"g");
+    while((m=r.exec(t))){const f=sexaFix(m,kind);if(f)return f}}
+  if((m=RX.nmea.exec(t))){let la=num(m[1])+num(m[2])/60,lo=num(m[4])+num(m[5])/60;
+    if(m[3].toUpperCase()==="S")la=-la; if(m[6].toUpperCase()==="W")lo=-lo;
+    if(ok(la,lo))return{lat:la,lon:lo,src:"NMEA deg/dec-min"}}
+  if((m=RX.ddh.exec(t))){let la=num(m[1]),lo=num(m[3]);
+    if(m[2].toUpperCase()==="S")la=-la; if(m[4].toUpperCase()==="W")lo=-lo;
+    if(ok(la,lo))return{lat:la,lon:lo,src:"decimal degrees"}}
+  if((m=RX.ddp.exec(t))){let la=num(m.groups.lat),lo=num(m.groups.lon);
+    if(m.groups.h1.toUpperCase()==="S")la=-la; if(m.groups.h2.toUpperCase()==="W")lo=-lo;
+    if(ok(la,lo))return{lat:la,lon:lo,src:"decimal degrees"}}
+  for(const rx of[RX.lab,RX.labr]){if((m=rx.exec(t))&&ok(num(m.groups.lat),num(m.groups.lon)))
+    return{lat:num(m.groups.lat),lon:num(m.groups.lon),src:"labelled lat/long"}}
+  // bare pair: both numbers must carry a fraction — "14 30", "31 08" and "14.30, 12"
+  // are times, dates and headcounts, and a whole-degree fix is no use for an LZ anyway
+  const g=new RegExp(RX.dd.source,"g"); let mm;
+  while((mm=g.exec(t))){if(!hasFrac(mm[1])||!hasFrac(mm[2]))continue;
+    const a=num(mm[1]),b=num(mm[2]);
+    if(Math.abs(a)>90&&Math.abs(b)<=90)
+      return{lat:b,lon:a,src:"decimal",note:"looked like lon,lat — swapped"};
+    if(ok(a,b))return{lat:a,lon:b,src:"decimal degrees"}}
+  return null}
+
+
+/* Every coordinate in a block of text, in order. Intel reports often carry more
+   than one grid, and silently taking the first is how you brief the wrong point.
+   Bare decimal pairs are only used when nothing unambiguous was found, so dates,
+   times and counts are never mistaken for a fix. */
+function findAll(text){
+  if(!text)return[];
+  const t=normalise(text),out=[],spans=[];
+  const G=rx=>new RegExp(rx.source,rx.flags.includes("g")?rx.flags:rx.flags+"g");
+  const add=(f,a,b)=>{
+    if(!f||!ok(f.lat,f.lon))return;
+    if(spans.some(([s0,e])=>a<e&&s0<b))return;
+    if(out.some(o=>Math.abs(o.lat-f.lat)<1e-5&&Math.abs(o.lon-f.lon)<1e-5))return;
+    out.push(f);spans.push([a,b])};
+  let m;
+  const rm=G(RX.mgrs);
+  while((m=rm.exec(t))){const p=fromMGRS(m[1]);
+    if(p)add({lat:p.lat,lon:p.lon,src:"MGRS "+m[1].toUpperCase()},m.index,m.index+m[0].length)}
+  for(const[rx,kind]of[[RX.dms,"DMS"],[RX.ddm,"deg/dec-min"],[RX.dm,"deg/min"]]){
+    const r=G(rx);
+    while((m=r.exec(t)))add(sexaFix(m,kind),m.index,m.index+m[0].length)}
+  const rn=G(RX.nmea);
+  while((m=rn.exec(t))){let la=num(m[1])+num(m[2])/60,lo=num(m[4])+num(m[5])/60;
+    if(m[3].toUpperCase()==="S")la=-la; if(m[6].toUpperCase()==="W")lo=-lo;
+    add({lat:la,lon:lo,src:"NMEA deg/dec-min"},m.index,m.index+m[0].length)}
+  const rh=G(RX.ddh);
+  while((m=rh.exec(t))){let la=num(m[1]),lo=num(m[3]);
+    if(m[2].toUpperCase()==="S")la=-la; if(m[4].toUpperCase()==="W")lo=-lo;
+    add({lat:la,lon:lo,src:"decimal degrees"},m.index,m.index+m[0].length)}
+  const rp=G(RX.ddp);
+  while((m=rp.exec(t))){let la=num(m.groups.lat),lo=num(m.groups.lon);
+    if(m.groups.h1.toUpperCase()==="S")la=-la; if(m.groups.h2.toUpperCase()==="W")lo=-lo;
+    add({lat:la,lon:lo,src:"decimal degrees"},m.index,m.index+m[0].length)}
+  for(const rx of[RX.lab,RX.labr]){const r=G(rx);
+    while((m=r.exec(t)))add({lat:num(m.groups.lat),lon:num(m.groups.lon),src:"labelled lat/long"},
+                            m.index,m.index+m[0].length)}
+  for(const rx of[RX.urlq,RX.urlat]){const r=G(rx);
+    while((m=r.exec(t)))add({lat:num(m[1]),lon:num(m[2]),src:"map link"},
+                            m.index,m.index+m[0].length)}
+  if(!out.length){const one=parseText(text);if(one)return[one]}
+  const idx=out.map((_,i)=>i).sort((a,b)=>spans[a][0]-spans[b][0]);
+  return idx.map(i=>out[i])}
+
+/* files: GPX / KML / CoT XML, and TAK .zip packages read with DecompressionStream */
+function parseXML(text,name){
+  const out=[],doc=new DOMParser().parseFromString(text,"application/xml");
+  if(doc.querySelector("parsererror"))return out;
+  const push=(la,lo,label,src)=>{if(ok(+la,+lo))out.push({lat:+la,lon:+lo,label:label||"",src})};
+  for(const tag of["wpt","rtept","trkpt"]){
+    for(const el of doc.getElementsByTagName(tag)){
+      const n=el.getElementsByTagName("name")[0];
+      push(el.getAttribute("lat"),el.getAttribute("lon"),n&&n.textContent.trim(),
+           "GPX "+tag+(name?" · "+name:""));
+      if(tag==="trkpt")break}
+    if(out.length)break}
+  for(const ev of doc.getElementsByTagName("event")){
+    const pt=ev.getElementsByTagName("point")[0]; if(!pt)continue;
+    const c=ev.getElementsByTagName("contact")[0];
+    push(pt.getAttribute("lat"),pt.getAttribute("lon"),
+         c&&c.getAttribute("callsign"),"CoT"+(name?" · "+name:""))}
+  for(const pm of doc.getElementsByTagName("Placemark")){
+    const c=pm.getElementsByTagName("coordinates")[0]; if(!c)continue;
+    const b=c.textContent.trim().split(/\s+/)[0].split(",");
+    const n=pm.getElementsByTagName("name")[0];
+    if(b.length>=2)push(b[1],b[0],n&&n.textContent.trim(),"KML"+(name?" · "+name:""))}
+  return out}
+
+async function unzip(buf){
+  const dv=new DataView(buf),td=new TextDecoder(),files=[];
+  let eocd=-1;
+  for(let i=buf.byteLength-22;i>=0&&i>buf.byteLength-66000;i--)
+    if(dv.getUint32(i,true)===0x06054b50){eocd=i;break}
+  if(eocd<0)return files;
+  let n=dv.getUint16(eocd+10,true),off=dv.getUint32(eocd+16,true);
+  for(let k=0;k<n;k++){
+    if(dv.getUint32(off,true)!==0x02014b50)break;
+    const method=dv.getUint16(off+10,true),csize=dv.getUint32(off+20,true),
+      nlen=dv.getUint16(off+28,true),elen=dv.getUint16(off+30,true),
+      clen=dv.getUint16(off+32,true),lho=dv.getUint32(off+42,true),
+      name=td.decode(new Uint8Array(buf,off+46,nlen));
+    off+=46+nlen+elen+clen;
+    if(!/\.(cot|xml|gpx|kml)$/i.test(name))continue;
+    const lnlen=dv.getUint16(lho+26,true),lelen=dv.getUint16(lho+28,true),
+      dstart=lho+30+lnlen+lelen,raw=new Uint8Array(buf,dstart,csize);
+    try{
+      let bytes=raw;
+      if(method===8){
+        const ds=new DecompressionStream("deflate-raw");
+        bytes=new Uint8Array(await new Response(
+          new Blob([raw]).stream().pipeThrough(ds)).arrayBuffer())}
+      files.push({name,text:td.decode(bytes)})
+    }catch(e){}}
+  return files}
+
+async function parseFile(f){
+  const nm=f.name;
+  if(/\.(zip|kmz)$/i.test(nm)){
+    const entries=await unzip(await f.arrayBuffer());
+    return entries.flatMap(e=>parseXML(e.text,e.name))}
+  const text=await f.text();
+  if(/\.(gpx|kml|cot|xml)$/i.test(nm))return parseXML(text,nm);
+  const one=parseText(text); return one?[one]:[]}
+
+/* ─────────────────────────  imagery  ───────────────────────── */
+const TILE=256,R_E=6378137,ORIGIN=Math.PI*R_E;
+/* Set an ArcGIS Location Platform key here for licensed/operational use.
+   Leave empty to use the open basemap endpoint. */
+const ESRI_KEY="";
+const ESRI=(z,x,y)=>ESRI_KEY
+  ?`https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}?token=${ESRI_KEY}`
+  :`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+const ESRI_LAB=(z,x,y)=>`https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/${z}/${y}/${x}`;
+const MAPBOX_TOKEN="pk.eyJ1Ijoicm9iZXJ0bWNwaGVyc29ucm0iLCJhIjoiY210N203ZGk2MHR3OTJ3czVtcGV5enc2NSJ9.5jU7dTETpaQqG4JYFV1VCQ";
+const MAPBOX=(z,x,y)=>`https://api.mapbox.com/v4/mapbox.satellite/${z}/${x}/${y}.jpg90?access_token=${MAPBOX_TOKEN}`;
+const ESRI_ROADS=(z,x,y)=>`https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/${z}/${y}/${x}`;
+const WB=r=>(z,x,y)=>`https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/${r}/${z}/${y}/${x}`;
+
+const merc=(lon,lat)=>[lon*DEG*R_E,Math.log(Math.tan(Math.PI/4+lat*DEG/2))*R_E];
+const toPx=(x,y,z)=>{const s=TILE*2**z;return[(x+ORIGIN)/(2*ORIGIN)*s,(ORIGIN-y)/(2*ORIGIN)*s]};
+const groundRes=(lat,z)=>156543.033928*Math.cos(lat*DEG)/2**z;
+
+const imgCache=new Map();
+/* A field connection drops requests when you fire 40 tiles at once, so tiles go
+   through a small queue with retries rather than all at the same moment. */
+let inflight=0,queue=[];const MAXCONC=6;
+function pump(){while(inflight<MAXCONC&&queue.length){const j=queue.shift();inflight++;j()}}
+function loadOnce(url){return new Promise(res=>{
+  const im=new Image();im.crossOrigin="anonymous";
+  let done=false;const fin=v=>{if(done)return;done=true;inflight--;pump();res(v)};
+  im.onload=()=>fin(im);im.onerror=()=>fin(null);
+  setTimeout(()=>fin(null),20000);im.src=url})}
+function loadImg(url,tries=3){
+  if(imgCache.has(url))return imgCache.get(url);
+  const p=(async()=>{
+    for(let k=0;k<tries;k++){
+      const im=await new Promise(res=>{queue.push(()=>loadOnce(url).then(res));pump()});
+      if(im)return im;
+      await new Promise(r=>setTimeout(r,350*(k+1)))}
+    imgCache.delete(url);           // a failure is not remembered — the next build retries it
+    return null})();
+  if(imgCache.size>1200)for(const k of [...imgCache.keys()].slice(0,300))imgCache.delete(k);
+  imgCache.set(url,p);return p}
+
+const _probeCv=document.createElement("canvas");_probeCv.width=_probeCv.height=32;
+const _probeCx=_probeCv.getContext("2d",{willReadFrequently:true});
+function isPlaceholder(im){
+  try{_probeCx.drawImage(im,0,0,32,32);
+    const d=_probeCx.getImageData(0,0,32,32).data;
+    let sat=0,sum=0,sq=0,n=0;
+    for(let i=0;i<d.length;i+=4){
+      const r=d[i],g=d[i+1],b=d[i+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b);
+      sat+=mx?255*(mx-mn)/mx:0;
+      const l=.299*r+.587*g+.114*b;sum+=l;sq+=l*l;n++}
+    const sd=Math.sqrt(Math.max(0,sq/n-(sum/n)**2));
+    return sat/n<15&&sd<12}catch(e){return false}}
+
+const zoomCache=new Map();
+async function deepestZoom(lat,lon,tileUrl,hi=20,lo=15){
+  const key=tileUrl(0,0,0)+"|"+lat.toFixed(3)+","+lon.toFixed(3);
+  if(zoomCache.has(key))return zoomCache.get(key);
+  const [mx,my]=merc(lon,lat);let best=lo;
+  for(let z=hi;z>=lo;z--){
+    const[px,py]=toPx(mx,my,z);
+    const im=await loadImg(tileUrl(z,Math.floor(px/TILE),Math.floor(py/TILE)));
+    if(im&&!isPlaceholder(im)){best=z;break}}
+  zoomCache.set(key,best);return best}
+
+async function fetchMap(lat,lon,spanM,px,{tileUrl=ESRI,labels=false,maxZoom=null}={}){
+  const [mx,my]=merc(lon,lat);
+  const spanMerc=spanM/Math.cos(lat*DEG);
+  const zmax=maxZoom!=null?maxZoom:await deepestZoom(lat,lon,tileUrl);
+  let z=zmax;
+  while(z>0&&spanMerc/(2*ORIGIN)*TILE*2**z>px*1.5)z--;
+  while(z<zmax&&spanMerc/(2*ORIGIN)*TILE*2**z<px*.85)z++;
+  const[pcx,pcy]=toPx(mx,my,z),half=spanMerc/(2*ORIGIN)*TILE*2**z/2;
+  const l=pcx-half,t=pcy-half,r=pcx+half,b=pcy+half;
+  const tx0=Math.floor(l/TILE),ty0=Math.floor(t/TILE),
+        tx1=Math.floor((r-1e-6)/TILE),ty1=Math.floor((b-1e-6)/TILE),n=2**z;
+  const cv=document.createElement("canvas");
+  cv.width=(tx1-tx0+1)*TILE;cv.height=(ty1-ty0+1)*TILE;
+  const cx=cv.getContext("2d");cx.fillStyle="#1a1a1e";cx.fillRect(0,0,cv.width,cv.height);
+  const jobs=[];
+  for(let ty=ty0;ty<=ty1;ty++)for(let tx=tx0;tx<=tx1;tx++)jobs.push([tx,ty]);
+  const draw=async(url,tx,ty)=>{const im=await loadImg(url);
+    if(im)cx.drawImage(im,(tx-tx0)*TILE,(ty-ty0)*TILE)};
+  await Promise.all(jobs.map(([tx,ty])=>
+    ty<0||ty>=n?null:draw(tileUrl(z,((tx%n)+n)%n,ty),tx,ty)));
+  if(labels)await Promise.all(jobs.map(([tx,ty])=>
+    ty<0||ty>=n?null:draw(ESRI_LAB(z,((tx%n)+n)%n,ty),tx,ty)));
+  const sx=l-tx0*TILE,sy=t-ty0*TILE,sw=r-l,sh=b-t;
+  const out=document.createElement("canvas");out.width=out.height=px;
+  const o=out.getContext("2d");o.imageSmoothingQuality="high";
+  o.drawImage(cv,sx,sy,sw,sh,0,0,px,px);
+  return{canvas:out,zoom:z,nativePx:sw,effRes:spanM/sw,upscale:px/sw}}
+
+/* imagery age, alternate captures, elevation */
+async function captureInfo(lat,lon){
+  const d=.002,u=`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/identify`
+    +`?geometry=${encodeURIComponent(JSON.stringify({x:lon,y:lat}))}&geometryType=esriGeometryPoint`
+    +`&sr=4326&layers=all&tolerance=2&mapExtent=${lon-d},${lat-d},${lon+d},${lat+d}`
+    +`&imageDisplay=600,550,96&returnGeometry=false&f=json`;
+  try{const j=await(await fetch(u)).json();let best=null;
+    for(const r of j.results||[]){const a=r.attributes||{};
+      if(!a.SRC_DATE2||a.SRC_DATE2==="Null")continue;
+      const rm=parseFloat(a["RESOLUTION (M)"]);if(!isFinite(rm))continue;
+      if(!best||rm<best.rm)best={rm,a}}
+    if(!best)return{};
+    const raw=String(best.a["DATE (YYYYMMDD)"]||"");
+    let dt=null;if(/^\d{8}$/.test(raw))dt=new Date(+raw.slice(0,4),+raw.slice(4,6)-1,+raw.slice(6));
+    return{dt,dateStr:best.a.SRC_DATE2,res:best.rm,sensor:best.a.DESCRIPTION||"",
+           provider:best.a.SOURCE||""}}catch(e){return{}}}
+
+let wbCfg=null;
+async function waybackCaptures(lat,lon,zoom=17,scan=48,limit=4){
+  try{
+    if(!wbCfg)wbCfg=await(await fetch(
+      "https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json")).json();
+    const rels=Object.entries(wbCfg).map(([id,v])=>{
+      const t=v.itemTitle||"",i=t.indexOf("Wayback ");
+      return i<0?null:{id:+id,date:t.slice(i+8).replace(/\)$/,"").trim(),
+                       meta:v.metadataLayerUrl}}).filter(Boolean)
+      .sort((a,b)=>b.date.localeCompare(a.date)).slice(0,scan);
+    const[mx,my]=merc(lon,lat),[px,py]=toPx(mx,my,zoom);
+    const tx=Math.floor(px/TILE),ty=Math.floor(py/TILE);
+    // Esri redirects a release to the earlier one holding the same imagery,
+    // so a response that did NOT redirect marks a genuinely new capture.
+    // probed a few at a time — a field connection drops a 48-wide burst
+    const probe=async r=>{
+      try{const res=await fetch(WB(r.id)(zoom,tx,ty),{method:"HEAD"});
+        if(!res.ok)return null;
+        const m=res.url.match(/mapserver\/tile\/(\d+)\//i);
+        return{...r,holder:m?+m[1]:r.id}}catch(e){return null}};
+    const hits=[];
+    for(let i=0;i<rels.length;i+=6)hits.push(...await Promise.all(rels.slice(i,i+6).map(probe)));
+    const seen=new Set(),out=[];
+    for(const h of hits.filter(Boolean)){
+      if(seen.has(h.holder))continue;seen.add(h.holder);out.push(h);
+      if(out.length>=limit)break}
+    // true sensor capture date per release
+    await Promise.all(out.map(async o=>{
+      if(!o.meta)return;const d=.0015;
+      try{const j=await(await fetch(`${o.meta}/identify?geometry=`
+        +encodeURIComponent(JSON.stringify({x:lon,y:lat}))
+        +`&geometryType=esriGeometryPoint&sr=4326&layers=all&tolerance=2`
+        +`&mapExtent=${lon-d},${lat-d},${lon+d},${lat+d}&imageDisplay=600,550,96`
+        +`&returnGeometry=false&f=json`)).json();
+        let best=null;
+        for(const r of j.results||[]){const a=r.attributes||{};
+          if(!a.SRC_DATE2||a.SRC_DATE2==="Null")continue;
+          const rm=parseFloat(a.SRC_RES);if(!isFinite(rm))continue;
+          if(!best||rm<best.rm)best={rm,a}}
+        if(best){o.capture=best.a.SRC_DATE2;o.res=best.rm;o.sensor=best.a.SRC_DESC||""}
+      }catch(e){}}));
+    const byDate=new Set(),uniq=[];
+    for(const o of out){const k=o.capture||o.date;
+      if(byDate.has(k))continue;byDate.add(k);uniq.push(o)}
+    return uniq}catch(e){return[]}}
+
+async function elevation(lat,lon,radius=60){
+  const dLat=radius/111320,dLon=radius/(111320*Math.max(.1,Math.cos(lat*DEG))),n=3,pts=[];
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++)
+    pts.push([lat+(i-1)*dLat,lon+(j-1)*dLon]);
+  try{
+    const ctl=new AbortController();setTimeout(()=>ctl.abort(),7000);
+    const j=await(await fetch("https://api.open-elevation.com/api/v1/lookup?locations="
+      +pts.map(p=>p[0].toFixed(6)+","+p[1].toFixed(6)).join("|"),{signal:ctl.signal})).json();
+    const el=(j.results||[]).map(r=>r.elevation);
+    if(el.length!==n*n||el.some(v=>v==null))return null;
+    const step=radius,g=(i,j)=>el[i*n+j];let worst=0;
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+      if(i+1<n)worst=Math.max(worst,Math.abs(g(i+1,j)-g(i,j))/step);
+      if(j+1<n)worst=Math.max(worst,Math.abs(g(i,j+1)-g(i,j))/step)}
+    return{m:g(1,1),ft:g(1,1)*3.28084,slopeDeg:Math.atan(worst)/DEG,
+           slopePct:worst*100,radius}}catch(e){return null}}
+
+
+/* ─────────────────  latest Sentinel-2 pass  ─────────────────
+   Free, open (Copernicus), dated, 10 m. Nothing else in the brief can say what
+   the ground looked like a fortnight ago. Scenes from the public Earth Search
+   STAC; pixels read straight out of the Cloud-Optimised GeoTIFF on AWS Open Data
+   with range requests. No key, no library. Ground state, not detail. */
+const STAC="https://earth-search.aws.element84.com/v1/search";
+const S2_SPAN=6000;
+const fetchT=(url,opt={},ms=40000)=>{const c=new AbortController();const t=setTimeout(()=>c.abort(),ms);
+  return fetch(url,{...opt,signal:c.signal}).finally(()=>clearTimeout(t))};
+
+async function s2Search(lat,lon,days=60,maxCloud=75){
+  const now=new Date(),from=new Date(now.getTime()-days*864e5);
+  const q={collections:["sentinel-2-l2a"],intersects:{type:"Point",coordinates:[lon,lat]},
+    datetime:`${from.toISOString().slice(0,10)}T00:00:00Z/${now.toISOString().slice(0,10)}T23:59:59Z`,
+    limit:40,sortby:[{field:"properties.datetime",direction:"desc"}]};
+  const j=await(await fetchT(STAC,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(q)})).json();
+  const out=[];
+  for(const f of j.features||[]){const p=f.properties||{},a=(f.assets||{}).visual;
+    if(!a||!a["proj:transform"])continue;
+    const cc=p["eo:cloud_cover"]??100;if(cc>maxCloud)continue;
+    const epsg=p["proj:epsg"]||+String(p["proj:code"]||"0").split(":").pop();
+    out.push({id:f.id,dt:new Date(p.datetime),cloud:cc,epsg,transform:a["proj:transform"],href:a.href})}
+  return out}
+
+/* just enough TIFF to pull tiles out of a Sentinel-2 TCI COG */
+class COG{
+  constructor(href){this.href=href;this.buf=null;this.levels=[]}
+  async range(a,b){const r=await fetchT(this.href,{headers:{Range:`bytes=${a}-${b}`}},45000);
+    if(r.status!==206&&r.status!==200)throw new Error("range "+r.status);
+    return new Uint8Array(await r.arrayBuffer())}
+  async ensure(end){if(!this.buf){this.buf=await this.range(0,65535);return}
+    if(end>this.buf.length){const more=await this.range(this.buf.length,end+65535);
+      const nb=new Uint8Array(this.buf.length+more.length);nb.set(this.buf);nb.set(more,this.buf.length);this.buf=nb}}
+  dv(){return new DataView(this.buf.buffer,this.buf.byteOffset,this.buf.byteLength)}
+  async open(){
+    await this.ensure(8);const le=this.buf[0]===0x49;this.le=le;let d=this.dv();
+    if(d.getUint16(2,le)!==42)throw new Error("not a classic TIFF");
+    let off=d.getUint32(4,le);
+    const SZ={1:1,3:2,4:4,12:8,16:8};
+    while(off){
+      await this.ensure(off+2);d=this.dv();const n=d.getUint16(off,le);
+      await this.ensure(off+2+n*12+4);d=this.dv();
+      const tags={};
+      for(let i=0;i<n;i++){const p=off+2+i*12;tags[d.getUint16(p,le)]={typ:d.getUint16(p+2,le),cnt:d.getUint32(p+4,le),p:p+8}}
+      const val=async t=>{const {typ,cnt,p}=t,size=SZ[typ],total=size*cnt;
+        let o=p;if(total>4){o=this.dv().getUint32(p,le);await this.ensure(o+total)}
+        const dd=this.dv(),out=new Array(cnt);
+        for(let i=0;i<cnt;i++){const q=o+i*size;
+          out[i]=typ===1?dd.getUint8(q):typ===3?dd.getUint16(q,le):typ===4?dd.getUint32(q,le):typ===12?dd.getFloat64(q,le):Number(dd.getBigUint64(q,le))}
+        return out};
+      const lv={w:(await val(tags[256]))[0],h:(await val(tags[257]))[0],comp:(await val(tags[259]))[0],
+        tw:(await val(tags[322]))[0],th:(await val(tags[323]))[0],
+        pred:tags[317]?(await val(tags[317]))[0]:1,spp:tags[277]?(await val(tags[277]))[0]:1,
+        offs:await val(tags[324]),cnts:await val(tags[325])};
+      this.levels.push(lv);
+      d=this.dv();off=d.getUint32(off+2+n*12,le)}
+    if(!this.levels.length)throw new Error("no IFDs");return this}
+  async tile(L,tx,ty){
+    const lv=this.levels[L],across=Math.ceil(lv.w/lv.tw),i=ty*across+tx;
+    if(i<0||i>=lv.offs.length||!lv.cnts[i])return null;
+    const raw=await this.range(lv.offs[i],lv.offs[i]+lv.cnts[i]-1);
+    let data=raw;
+    if(lv.comp===8)data=new Uint8Array(await new Response(new Blob([raw]).stream()
+      .pipeThrough(new DecompressionStream("deflate"))).arrayBuffer());
+    else if(lv.comp!==1)throw new Error("TIFF compression "+lv.comp);
+    const {tw,th,spp}=lv;
+    if(lv.pred===2){const row=tw*spp;
+      for(let r=0;r<th;r++){const b=r*row;for(let c=spp;c<row;c++)data[b+c]=(data[b+c]+data[b+c-spp])&255}}
+    const cv=document.createElement("canvas");cv.width=tw;cv.height=th;
+    const id=cv.getContext("2d").createImageData(tw,th),px=id.data;
+    if(spp===3)for(let k=0,j=0;k<tw*th;k++,j+=3){px[k*4]=data[j];px[k*4+1]=data[j+1];px[k*4+2]=data[j+2];px[k*4+3]=255}
+    else for(let k=0;k<tw*th;k++){px[k*4]=px[k*4+1]=px[k*4+2]=data[k];px[k*4+3]=255}
+    cv.getContext("2d").putImageData(id,0,0);return cv}}
+
+/* north-up Web-Mercator square cut from the scene. The level is chosen by
+   RESOLUTION, never by download size: the coarsest overview that still meets
+   the output's metres-per-pixel, else full 10 m. (An earlier "tile budget"
+   rule dropped to a 40-80 m overview whenever the window straddled a
+   tile-grid corner — levels 0 and 1 share the same 10.24 km ground footprint
+   per tile, so the budget rejected both and the panel came out 10-19x
+   upscaled. Sharpness is the point; never trade it.) */
+async function s2Window(scene,lat,lon,spanM,px,forceLevel=null,cog=null){
+  const zone=scene.epsg%100,south=scene.epsg>=32700&&scene.epsg<32800;
+  const [a,,c,,e,f]=scene.transform;
+  cog=cog||await new COG(scene.href).open();
+  const [mx,my]=merc(lon,lat),half=spanM/Math.cos(lat*DEG)/2;
+  const srcOf=(u,v)=>{const x=mx-half+(u/px)*2*half,y=my+half-(v/px)*2*half;
+    const lo=x/R_E/DEG,la=(2*Math.atan(Math.exp(y/R_E))-Math.PI/2)/DEG;
+    const ut=utmIn(la,lo,zone,south);return[(ut.e-c)/a,(ut.n-f)/e]};
+  const corners=[[0,0],[px,0],[0,px],[px,px]].map(([u,v])=>srcOf(u,v));
+  const cols=corners.map(s=>s[0]),rows=corners.map(s=>s[1]);
+  const need=spanM/px;
+  let L=0;
+  if(forceLevel!=null)L=forceLevel;
+  else for(let k=cog.levels.length-1;k>=0;k--)
+    if(a*(cog.levels[0].w/cog.levels[k].w)<=need*1.05){L=k;break}
+  const lv=cog.levels[L],sc=cog.levels[0].w/lv.w,
+    tx0v=Math.floor(Math.min(...cols)/sc/lv.tw),tx1v=Math.floor(Math.max(...cols)/sc/lv.tw),
+    ty0v=Math.floor(Math.min(...rows)/sc/lv.th),ty1v=Math.floor(Math.max(...rows)/sc/lv.th);
+  let tx0=tx0v,tx1=tx1v,ty0=ty0v,ty1=ty1v;
+  const across=Math.ceil(lv.w/lv.tw),down=Math.ceil(lv.h/lv.th);
+  tx0=Math.max(0,tx0);tx1=Math.min(across-1,tx1);ty0=Math.max(0,ty0);ty1=Math.min(down-1,ty1);
+  const mos=document.createElement("canvas");mos.width=(tx1-tx0+1)*lv.tw;mos.height=(ty1-ty0+1)*lv.th;
+  const mc=mos.getContext("2d");mc.fillStyle="#000";mc.fillRect(0,0,mos.width,mos.height);
+  const jobs=[];for(let ty=ty0;ty<=ty1;ty++)for(let tx=tx0;tx<=tx1;tx++)
+    jobs.push(cog.tile(L,tx,ty).then(t=>{if(t)mc.drawImage(t,(tx-tx0)*lv.tw,(ty-ty0)*lv.th)}));
+  await Promise.all(jobs);
+  // output(x,y) -> mosaic(col,row) is an affine to sub-pixel accuracy over a few km
+  // (both projections are conformal); canvas wants the inverse, mosaic -> output
+  const m=(u,v)=>{const [cc,rr]=srcOf(u,v);return[cc/sc-tx0*lv.tw,rr/sc-ty0*lv.th]};
+  const [c0,r0]=m(0,0),[c1,r1]=m(px,0),[c2,r2]=m(0,px);
+  const A=(c1-c0)/px,B=(c2-c0)/px,C=c0,D=(r1-r0)/px,E=(r2-r0)/px,F=r0;   // out->mos
+  const det=A*E-B*D,ia=E/det,ib=-B/det,ic=-D/det,id=A/det;                // mos->out
+  const out=document.createElement("canvas");out.width=out.height=px;
+  const o=out.getContext("2d");o.imageSmoothingEnabled=true;o.imageSmoothingQuality="high";
+  o.setTransform(ia,ic,ib,id,-(ia*C+ib*F),-(ic*C+id*F));o.drawImage(mos,0,0);o.setTransform(1,0,0,1,0,0);
+  // how much of the window is cloud / off the scene
+  const sm=document.createElement("canvas");sm.width=sm.height=96;
+  const sx=sm.getContext("2d",{willReadFrequently:true});sx.drawImage(out,0,0,96,96);
+  const d=sx.getImageData(0,0,96,96).data;let cloud=0,nodata=0;
+  for(let i=0;i<d.length;i+=4){const r=d[i],g=d[i+1],b=d[i+2],mn=Math.min(r,g,b),mxx=Math.max(r,g,b);
+    if(!r&&!g&&!b)nodata++;else if(mn>165&&mxx-mn<45)cloud++}
+  return{canvas:out,resM:a*sc,level:L,tiles:(tx1-tx0+1)*(ty1-ty0+1),cloudPct:100*cloud/9216,nodataPct:100*nodata/9216,cog}}
+
+/* WGS84 -> UTM in a given zone (the MGRS code above always picks its own zone) */
+function utmIn(lat,lon,zone,south){const p=lat*DEG,l=lon*DEG,l0=((zone-1)*6-180+3)*DEG,
+  N=A/Math.sqrt(1-E2*Math.sin(p)**2),T=Math.tan(p)**2,C=EP2*Math.cos(p)**2,a=Math.cos(p)*(l-l0),
+  M=A*((1-E2/4-3*E4/64-5*E6/256)*p-(3*E2/8+3*E4/32+45*E6/1024)*Math.sin(2*p)
+    +(15*E4/256+45*E6/1024)*Math.sin(4*p)-(35*E6/3072)*Math.sin(6*p));
+  const e=K0*N*(a+(1-T+C)*a**3/6+(5-18*T+T*T+72*C-58*EP2)*a**5/120)+5e5;
+  let n=K0*(M+N*Math.tan(p)*(a*a/2+(5-T+9*C+4*C*C)*a**4/24+(61-58*T+T*T+600*C-330*EP2)*a**6/720));
+  if(south)n+=1e7;return{e,n}}
+
+/* Judge cloud over the window from the coarsest overview first (a few KB), and
+   only pull full-resolution tiles for the scene actually chosen. */
+async function s2Latest(lat,lon,spanM,px,onStep){
+  let scenes;try{scenes=await s2Search(lat,lon)}catch(e){return null}
+  let best=null;
+  for(const s of scenes.slice(0,6)){
+    if(onStep)onStep(s);
+    let pr;try{const cog=await new COG(s.href).open();
+      pr=await s2Window(s,lat,lon,spanM,96,cog.levels.length-1,cog)}catch(e){continue}
+    if(pr.nodataPct>20)continue;                         // window runs off this granule
+    const cand={...s,probe:pr,ageDays:Math.floor((Date.now()-s.dt.getTime())/864e5)};
+    if(pr.cloudPct<25){best=cand;break}                  // recent and clear enough
+    if(!best||pr.cloudPct<best.probe.cloudPct)best=cand}
+  if(!best||best.probe.cloudPct>70)return null;        // a picture of cloud helps nobody
+  try{const w=await s2Window(best,lat,lon,spanM,px,null,best.probe.cog);
+    return{...best,...w}}catch(e){return null}}
+const s2Caption=p=>`Sentinel-2 · ${p.dt.getUTCDate()} ${MONS[p.dt.getUTCMonth()][0]+MONS[p.dt.getUTCMonth()].slice(1).toLowerCase()} ${p.dt.getUTCFullYear()} · `+
+  `${p.ageDays<60?p.ageDays+" days old":Math.floor(p.ageDays/30)+" months old"} · ${p.resM.toFixed(0)} m/px · cloud ~${p.cloudPct.toFixed(0)}%`;
+
+/* season comparison — why stale imagery misleads */
+function seasonPhase(lat,month){
+  if(Math.abs(lat)<=23.44){
+    const a=Math.abs(lat),wetN=a<8?[4,5,6,7,8,9,10]:a<11?[5,6,7,8,9,10]:[6,7,8,9];
+    const m=lat>=0?month:((month+5)%12)+1;     // southern tropics: shift six months
+    return wetN.includes(m)?"wet season":"dry season"}
+  const north=lat>=0,m=north?month:((month+5)%12)+1;
+  return[12,1,2].includes(m)?"winter (leaf-off)":[3,4,5].includes(m)?"spring"
+    :[6,7,8].includes(m)?"summer (full canopy)":"autumn"}
+function seasonAdvice(lat,dt){
+  const today=seasonPhase(lat,new Date().getMonth()+1);
+  if(!dt)return{text:`Today is ${today}; imagery date unknown.`,mismatch:true};
+  const shot=seasonPhase(lat,dt.getMonth()+1);
+  if(shot===today)return{text:`Imagery and today are both ${today} — ground should look similar.`,mismatch:false};
+  const t=today.includes("wet"),s=shot.includes("wet");
+  let msg;
+  if(t&&shot.includes("dry"))msg="Imagery is DRY season, today is WET — expect thicker vegetation, softer ground and standing water.";
+  else if(today.includes("dry")&&s)msg="Imagery is WET season, today is DRY — expect burnt-off scrub, more bare ground, dry watercourses.";
+  else if(shot.includes("leaf-off")&&today.includes("canopy"))msg="Imagery is leaf-off, today is full canopy — clearings and tracks may be hidden.";
+  else if(shot.includes("canopy")&&today.includes("leaf-off"))msg="Imagery is full canopy, today is leaf-off — more open than it looks.";
+  else msg=`Imagery is ${shot}, today is ${today} — expect some difference in ground appearance.`;
+  return{text:msg,mismatch:true}}
+
+/* ─────────────────────────  drawing  ───────────────────────── */
+/* Two palettes, deliberately. Anything drawn ON the imagery keeps the colour
+   that survives over terrain — the red reticle, the magenta rings, the yellow
+   next-view box, their black casings. Anything drawn on a bar or a card is
+   chrome and follows the RBM palette. Mixing the two would put brand greys over
+   scrub, where a crew could not find them. */
+const CASE="#000",LZC="#ff2d95",RETC="#ff2828",NEXT="#ffe400";      // on the ground
+const INK="#f0f0f0",DIMC="#a2a2ad",ACCENTC="#93b9b9",FILLC="#6b8f8f",
+      SANDC="#e6e0d4",WARNC="#ff8a3c",BGC="#2c2c3a",PANC="#22222f"; // on the chrome
+// one image per step, wide to tight — in WhatsApp the swipe is the drill-down
+const SEQ=[[30000,"AREA"],[6000,"DISTRICT"],[1500,"APPROACH"],
+           [500,"SURROUNDS"],[150,"THE POINT"]];
+const SEASON=400, MAP_PX=1440, SIDE=30, BAR_T=92, BAR_B=92;
+const IMG_W=MAP_PX+SIDE*2, IMG_H=BAR_T+MAP_PX+BAR_B;
+const CELL=780,GAP=20,MARG=20,CW=MARG*2+CELL*2+GAP,HH=592;
+const spanLabel=m=>m>=1000?(m/1000)+" km":m+" m";
+const FN=(w,s,mono)=>`${w} ${s}px ${mono?'ui-monospace,Menlo,monospace':
+  '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,sans-serif'}`;
+
+function T(c,x,y,s,f,fill=INK,align="left",base="top",sw=3){
+  c.font=f;c.textAlign=align;c.textBaseline=base;
+  if(sw){c.lineWidth=sw*2;c.strokeStyle=CASE;c.lineJoin="round";c.strokeText(s,x,y)}
+  c.fillStyle=fill;c.fillText(s,x,y)}
+function ellip(c,s,f,max){c.font=f;if(c.measureText(s).width<=max)return s;
+  while(s.length>4&&c.measureText(s+"…").width>max)s=s.slice(0,-1);
+  return s.replace(/[ ·-]+$/,"")+"…"}
+const SCALES=[10,20,25,50,100,200,250,500,1000,2000,2500,5000,10000,20000,25000,50000,100000];
+const roundScale=t=>SCALES.find(v=>v>=t)||100000;
+// largest round value not above t — a scale bar must be drawn at the length its label says
+const roundScaleDown=t=>[...SCALES].reverse().find(v=>v<=t)||10;
+
+function scaleBar(c,px,spanM){
+  const want=roundScale(spanM/4.5),bp=want/spanM*px,x=26,y=px-34;
+  c.fillStyle="rgba(0,0,0,.68)";c.fillRect(x-10,y-36,bp+20,52);
+  c.fillStyle=INK;c.fillRect(x,y,bp,11);c.strokeStyle=CASE;c.lineWidth=2;c.strokeRect(x,y,bp,11);
+  c.fillStyle=CASE;c.fillRect(x,y,bp/2,11);
+  T(c,x,y-8,want<1000?want+" m":(want/1000)+" km",FN(700,26),INK,"left","bottom",3)}
+
+function northArrow(c,px,size){
+  const cx=px-size*.85,cy=size*.95;
+  c.fillStyle="rgba(0,0,0,.65)";c.beginPath();c.arc(cx,cy,size*.72,0,7);c.fill();
+  const tip=[cx,cy-size*.52];
+  c.fillStyle=INK;c.beginPath();c.moveTo(...tip);
+  c.lineTo(cx-size*.26,cy+size*.3);c.lineTo(cx,cy+size*.12);c.fill();
+  c.fillStyle="#96969b";c.beginPath();c.moveTo(...tip);
+  c.lineTo(cx+size*.26,cy+size*.3);c.lineTo(cx,cy+size*.12);c.fill()}
+
+function cardinals(c,px,chipW=0,arrowR=0){
+  const f=FN(800,30),pad=12;let tx=px/2;
+  const lo=chipW+26,hi=px-arrowR-26;if(lo<hi)tx=Math.min(Math.max(tx,lo),hi);
+  T(c,tx,pad,"N",f,INK,"center","top",4);
+  T(c,px/2,px-pad,"S",f,INK,"center","bottom",4);
+  T(c,pad,px/2,"W",f,INK,"left","middle",4);
+  T(c,px-pad,px/2,"E",f,INK,"right","middle",4)}
+
+function grid(c,px,spanM){
+  const step=roundScale(spanM/4.5);c.strokeStyle="rgba(255,255,255,.22)";c.lineWidth=1;
+  for(let i=1;i*step<spanM;i++){const o=i*step/spanM*px;
+    for(const x of[o,px-o]){c.beginPath();c.moveTo(x,0);c.lineTo(x,px);c.stroke();
+      c.beginPath();c.moveTo(0,x);c.lineTo(px,x);c.stroke()}}}
+
+function extentBox(c,px,frac){
+  // corner brackets: they say where the next view sits without running a line
+  // across the ground
+  const m=px/2,half=Math.max(px*frac/2,14),arm=Math.max(14,half*.28);
+  const x0=m-half,y0=m-half,x1=m+half,y1=m+half;
+  for(const[ax,ay,dx,dy]of[[x0,y0,1,1],[x1,y0,-1,1],[x0,y1,1,-1],[x1,y1,-1,-1]]){
+    for(const[w,col]of[[5,CASE],[2,NEXT]]){
+      c.strokeStyle=col;c.lineWidth=w;c.lineCap="butt";
+      c.beginPath();c.moveTo(ax,ay);c.lineTo(ax+dx*arm,ay);c.stroke();
+      c.beginPath();c.moveTo(ax,ay);c.lineTo(ax,ay+dy*arm);c.stroke()}}}
+
+function lzMark(c,px,ringsM,spanM,innerFrac){
+  const m=px/2;
+  for(const rm of ringsM||[]){const rp=rm/spanM*px;
+    if(rp<14||rp>px*.52)continue;
+    c.lineWidth=7;c.strokeStyle=CASE;c.beginPath();c.arc(m,m,rp,0,7);c.stroke();
+    c.lineWidth=3;c.strokeStyle=LZC;c.beginPath();c.arc(m,m,rp,0,7);c.stroke();
+    T(c,m+rp*.707+6,m+rp*.707+6,rm+" m",FN(700,24),LZC,"left","top",4)}
+  // the point itself: a thin open-centre reticle, telescopic-sight style. The
+  // four arms stop short of the centre, so the ground at the exact point stays
+  // completely clean; thin red over a black casing reads on any surface.
+  const k=px/1440,gap=Math.max(7,Math.round(12*k)),arm=Math.max(26,Math.round(46*k));
+  const bar=(x0,y0,x1,y1,col)=>{c.fillStyle=col;c.fillRect(x0,y0,x1-x0,y1-y0)};
+  for(const[h,col,g,a]of[[3,CASE,gap-2,arm+2],[1,RETC,gap,arm]]){
+    bar(m+g,m-h,m+a,m+h+1,col);bar(m-a,m-h,m-g,m+h+1,col);
+    bar(m-h,m+g,m+h+1,m+a,col);bar(m-h,m-a,m+h+1,m-g,col)}}
+
+function chip(c,x,y,lines,f,fill=INK,bg="rgba(0,0,0,.7)",maxW=null){
+  c.font=f;const L=maxW?lines.map(s=>ellip(c,s,f,maxW)):lines;
+  const size=parseInt(f.match(/(\d+)px/)[1],10);
+  const w=Math.max(...L.map(s=>c.measureText(s).width)),h=(size+8)*L.length;
+  c.fillStyle=bg;c.fillRect(x,y,w+24,h+12);
+  L.forEach((s,i)=>T(c,x+12,y+6+i*(size+8),s,f,fill,"left","top",0));
+  return w+24}
+
+function stepBar(c,x,y,w,n,i,h){
+  const gap=7,seg=(w-gap*(n-1))/n;
+  for(let k=0;k<n;k++){c.fillStyle=k<=i?FILLC:"#3f3f4f";
+    c.fillRect(x+k*(seg+gap),y,seg,h)}}
+
+async function step(fix,spanM,px,label,index,total,
+                    {nextSpan,tileUrl,labels,rings,cap,name,step:showStep=true,image=null,
+                     chipText=null,chipFg="#ffd296",chipBg="rgba(120,60,10,.85)"}={}){
+  const m=image?{canvas:image,upscale:1,effRes:null}
+                :await fetchMap(fix.lat,fix.lon,spanM,px,{tileUrl:tileUrl||ESRI,labels});
+  const mc=m.canvas.getContext("2d");
+  const frac=nextSpan?nextSpan/spanM:null;
+  if(frac)extentBox(mc,px,frac);
+  lzMark(mc,px,rings,spanM,frac);
+  cardinals(mc,px,0,0);
+  if(chipText)chip(mc,14,px-58,[chipText],FN(800,24),chipFg,chipBg);
+  else if(m.upscale>2.6)chip(mc,14,px-58,["LIMIT OF AVAILABLE DETAIL — ENLARGED"],
+    FN(800,24),"#ffd296","rgba(120,60,10,.85)");
+
+  const k=Math.max(.55,Math.min(1,px/MAP_PX)),sd=Math.max(10,Math.round(SIDE*k)),
+        bt=Math.round(BAR_T*k),bb=Math.round(BAR_B*k),
+        W=px+sd*2,H=bt+px+bb,fs=n=>Math.max(11,Math.round(n*k));
+  const out=document.createElement("canvas");out.width=W;out.height=H;
+  const c=out.getContext("2d");
+  c.fillStyle=BGC;c.fillRect(0,0,W,H);
+  c.drawImage(m.canvas,sd,bt);
+  c.strokeStyle="#343a46";c.lineWidth=1;c.strokeRect(sd+.5,bt-.5,px,px);
+  c.fillStyle=FILLC;c.fillRect(0,0,W,Math.max(3,Math.round(5*k)));
+
+  let tx=sd;
+  if(showStep){T(c,tx,22*k,`${index} / ${total}`,FN(800,fs(30)),ACCENTC,"left","top",0);
+    tx+=116*k}
+  T(c,tx,22*k,ellip(c,label,FN(800,fs(30)),px*.40),FN(800,fs(30)),INK,"left","top",0);
+  T(c,W-sd,24*k,spanLabel(spanM)+" across",FN(800,fs(28)),INK,"right","top",0);
+  if(name){const tag=name.toUpperCase()+(DTG?"  \u00b7  "+DTG:"");
+    T(c,W-sd,58*k,ellip(c,tag,FN(400,fs(22)),px*.46),FN(400,fs(22)),DIMC,"right","top",0)}
+  if(showStep)stepBar(c,sd,bt-20*k,Math.min(430,px*.30),total,index-1,
+                      Math.max(4,Math.round(6*k)));
+
+  const by=bt+px,mg=toMGRS(fix.lat,fix.lon);
+  if(mg)T(c,sd,by+12*k,mg,FN(700,fs(30),true),ACCENTC,"left","top",0);
+  let foot=cap||"";
+  if(m.effRes)foot+=" · "+m.effRes.toFixed(2)+" m/px";
+  T(c,W-sd,by+18*k,ellip(c,foot,FN(400,fs(22)),px*.52),FN(400,fs(22)),DIMC,"right","top",0);
+  const want=roundScaleDown(spanM*.3),bp=want/spanM*px,
+        y0=by+60*k,bh=Math.max(6,Math.round(11*k));
+  c.fillStyle=INK;c.fillRect(sd,y0,bp,bh);
+  c.fillStyle="#5c6270";c.fillRect(sd,y0,bp/2,bh);
+  T(c,sd+bp+14*k,y0-5*k,want<1000?want+" m":(want/1000)+" km",
+    FN(800,fs(25)),INK,"left","top",0);
+  return out}
+
+function ageText(dt){if(!dt)return["date unknown",null];
+  const d=Math.floor((Date.now()-dt.getTime())/864e5);
+  return[d<60?d+" days old":d<730?Math.floor(d/30)+" months old":(d/365.25).toFixed(1)+" years old",d]}
+
+function roseCanvas(c,cx,cy,rad){
+  c.strokeStyle=DIMC;c.lineWidth=3;c.beginPath();c.arc(cx,cy,rad,0,7);c.stroke();
+  c.strokeStyle="#5a6070";c.lineWidth=2;c.beginPath();c.arc(cx,cy,rad*.62,0,7);c.stroke();
+  for(const[ang,lab,big]of[[0,"N",1],[90,"E",1],[180,"S",1],[270,"W",1],
+    [45,"045",0],[135,"135",0],[225,"225",0],[315,"315",0]]){
+    const a=(ang-90)*DEG;
+    c.strokeStyle=big?SANDC:"#6e6e78";c.lineWidth=big?4:2;c.beginPath();
+    c.moveTo(cx+Math.cos(a)*rad*.62,cy+Math.sin(a)*rad*.62);
+    c.lineTo(cx+Math.cos(a)*rad,cy+Math.sin(a)*rad);c.stroke();
+    T(c,cx+Math.cos(a)*rad*1.24,cy+Math.sin(a)*rad*1.24,lab,FN(700,big?30:19),
+      big?INK:DIMC,"center","middle",0)}
+  c.fillStyle=LZC;c.beginPath();c.moveTo(cx,cy-rad*.86);
+  c.lineTo(cx-rad*.15,cy+rad*.12);c.lineTo(cx+rad*.15,cy+rad*.12);c.fill()}
+
+function cardCanvas(fix,name,cap,ter,adv,others){
+  const cv=document.createElement("canvas");cv.width=IMG_W;cv.height=IMG_H;
+  const c=cv.getContext("2d");
+  c.fillStyle=BGC;c.fillRect(0,0,IMG_W,IMG_H);
+  c.fillStyle=FILLC;c.fillRect(0,0,IMG_W,6);
+  const x=SIDE+14;
+  T(c,x,30,"LANDING POINT DETAIL",FN(800,32),ACCENTC,"left","top",0);
+  T(c,x,76,ellip(c,(name||"LANDING POINT").toUpperCase(),FN(800,62),IMG_W-x-40),
+    FN(800,62),INK,"left","top",0);
+  let y=190;
+  for(const[k,v,sz]of[["MGRS",toMGRS(fix.lat,fix.lon),46],["DDM",ddm(fix.lat,fix.lon),34],
+      ["DD",fix.lat.toFixed(6)+", "+fix.lon.toFixed(6),34],["DMS",dms(fix.lat,fix.lon),34]]){
+    T(c,x,y+(sz-24)/2+4,k,FN(800,24),DIMC,"left","top",0);
+    T(c,x+104,y,v,FN(700,sz,true),sz>40?ACCENTC:INK,"left","top",0);y+=sz+24}
+  y+=16;
+  if(ter){
+    T(c,x,y+6,"ELEVATION",FN(800,24),DIMC,"left","top",0);
+    T(c,x+200,y,`${ter.m.toFixed(0)} m / ${ter.ft.toFixed(0)} ft AMSL`,FN(800,34),INK,"left","top",0);
+    y+=56;
+    T(c,x,y+6,"SLOPE",FN(800,24),DIMC,"left","top",0);
+    T(c,x+200,y,`up to ${ter.slopeDeg.toFixed(1)}° (${ter.slopePct.toFixed(0)}%) within ${ter.radius} m`,
+      FN(400,30),ter.slopeDeg>7?WARNC:INK,"left","top",0);y+=66}
+  T(c,x,y+6,"IMAGERY",FN(800,24),DIMC,"left","top",0);
+  const[age,days]=ageText(cap.dt);
+  T(c,x+200,y,`${cap.dateStr||"?"}  ·  ${age}`,FN(800,34),
+    days&&days>550?WARNC:INK,"left","top",0);y+=46;
+  T(c,x+200,y,`${cap.res||"?"} m/px · ${cap.sensor||""} · ${cap.provider||""}`,
+    FN(400,24),DIMC,"left","top",0);y+=44;
+  if(others&&others.length){T(c,x+200,y,"also held: "+others.slice(0,3).join(", "),
+    FN(400,24),DIMC,"left","top",0);y+=44}
+  if(adv){
+    y+=14;const h=104;
+    c.fillStyle=adv.mismatch?"#4a2a0c":"#162e1e";c.fillRect(SIDE,y,IMG_W-SIDE*2,h);
+    c.fillStyle=adv.mismatch?WARNC:"#5fcd87";c.fillRect(SIDE,y,9,h);
+    const f=FN(800,28);c.font=f;const words=adv.text.split(" ");let line="",lines=[];
+    for(const w of words){const t=(line+" "+w).trim();
+      if(c.measureText(t).width>IMG_W-SIDE*2-60){lines.push(line);line=w}else line=t}
+    lines.push(line);
+    lines.slice(0,2).forEach((ln,i)=>T(c,SIDE+30,y+20+i*36,ln,f,
+      adv.mismatch?WARNC:"#9be4b4","left","top",0));
+    y+=h}
+  y+=46;
+  T(c,x,y,"THE SEQUENCE",FN(800,26),DIMC,"left","top",0);y+=44;
+  SEQ.forEach(([span,lab],i)=>{
+    T(c,x,y,String(i+1),FN(800,30),ACCENTC,"left","top",0);
+    T(c,x+52,y,lab,FN(800,30),INK,"left","top",0);
+    T(c,x+430,y+3,spanLabel(span)+" across",FN(400,27),DIMC,"left","top",0);
+    if(i+1<SEQ.length){c.strokeStyle="#464c5a";c.lineWidth=2;
+      c.beginPath();c.moveTo(x+14,y+42);c.lineTo(x+14,y+54);c.stroke()}
+    y+=58});
+  T(c,x,y+10,"Yellow corners on each view mark what the next one covers.",
+    FN(400,25),DIMC,"left","top",0);
+  roseCanvas(c,IMG_W-SIDE-140,IMG_H-250,72);
+  T(c,IMG_W-SIDE-140,IMG_H-130,"ALL VIEWS NORTH-UP",FN(800,22),DIMC,"center","middle",0);
+  {const kx=x+10,ky=IMG_H-167;
+   const bar=(x0,y0,x1,y1,col)=>{c.fillStyle=col;c.fillRect(x0,y0,x1-x0,y1-y0)};
+   for(const[h,col,g,a]of[[2,CASE,2,15],[1,RETC,4,13]]){
+     bar(kx+g,ky-h,kx+a,ky+h+1,col);bar(kx-a,ky-h,kx-g,ky+h+1,col);
+     bar(kx-h,ky+g,kx+h+1,ky+a,col);bar(kx-h,ky-a,kx+h+1,ky-g,col)}}
+  T(c,x+32,IMG_H-180,"the landing point",FN(800,25),INK,"left","top",0);
+  T(c,x,IMG_H-62,`DTG ${dtg(false)}  ·  parsed from ${fix.src||"text"}`,
+    FN(400,22),DIMC,"left","top",0);
+  return cv}
+
+function ddm(lat,lon){const one=(v,p,n)=>{const h=v>=0?p:n;v=Math.abs(v);const d=Math.floor(v);
+  return`${String(d).padStart(2,"0")}° ${((v-d)*60).toFixed(3).padStart(6,"0")}' ${h}`};
+  return one(lat,"N","S")+" "+one(lon,"E","W")}
+function dms(lat,lon){const one=(v,p,n)=>{const h=v>=0?p:n;v=Math.abs(v);
+  const d=Math.floor(v),mf=(v-d)*60,m=Math.floor(mf),s=(mf-m)*60;
+  return`${String(d).padStart(2,"0")}°${String(m).padStart(2,"0")}'${s.toFixed(2).padStart(5,"0")}"${h}`};
+  return one(lat,"N","S")+" "+one(lon,"E","W")}
+
+/* ─────────────────────────  UI  ───────────────────────── */
+const $=id=>document.getElementById(id);
+let FIX=null,CANDIDATES=[],BUILT=[];
+
+function rose(){
+  const svg=document.querySelector(".rose");if(!svg||svg.dataset.done)return;
+  svg.dataset.done=1;const ns="http://www.w3.org/2000/svg",add=(t,a)=>{
+    const e=document.createElementNS(ns,t);for(const k in a)e.setAttribute(k,a[k]);
+    svg.appendChild(e);return e};
+  add("circle",{cx:50,cy:50,r:31,fill:"none",stroke:"#3f3f4f","stroke-width":2});
+  for(const[ang,lab]of[[0,"N"],[90,"E"],[180,"S"],[270,"W"]]){
+    const a=(ang-90)*Math.PI/180;
+    add("line",{x1:50+Math.cos(a)*20,y1:50+Math.sin(a)*20,x2:50+Math.cos(a)*31,
+      y2:50+Math.sin(a)*31,stroke:"#e6e0d4","stroke-width":2.4});
+    const t=add("text",{x:50+Math.cos(a)*42,y:50+Math.sin(a)*42,fill:"#f0f0f0",
+      "font-size":13,"font-weight":800,"text-anchor":"middle","dominant-baseline":"central"});
+    t.textContent=lab}
+  const p=add("polygon",{points:"50,23 45.5,55 54.5,55",fill:"#ff2d95"})}   // matches the rings
+
+function showFix(f){
+  FIX=f;$("fixcard").classList.remove("hide");rose();
+  const mg=toMGRS(f.lat,f.lon);
+  $("cd").innerHTML=
+    `<dt>MGRS</dt><dd class="big tapcopy" data-c="${mg}">${mg}</dd>`+
+    `<dt>DDM</dt><dd class="tapcopy" data-c="${ddm(f.lat,f.lon)}">${ddm(f.lat,f.lon)}</dd>`+
+    `<dt>DD</dt><dd class="tapcopy" data-c="${f.lat.toFixed(6)}, ${f.lon.toFixed(6)}">${f.lat.toFixed(6)}, ${f.lon.toFixed(6)}</dd>`+
+    `<dt>DMS</dt><dd class="tapcopy" data-c="${dms(f.lat,f.lon)}">${dms(f.lat,f.lon)}</dd>`;
+  for(const el of $("cd").querySelectorAll(".tapcopy"))
+    el.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(el.dataset.c);
+      const o=el.textContent;el.textContent="copied";setTimeout(()=>el.textContent=o,700)};
+  $("meta").innerHTML=`<span class="badge">read as ${f.src||"text"}</span>`+
+    (f.note?`<span class="badge warn">${f.note}</span>`:"")+
+    (f.label?`<span class="badge">${f.label}</span>`:"");
+  if(f.label&&!$("nm").value)$("nm").value=f.label;
+  quickLook(f);metaLook(f)}
+
+async function quickLook(f){
+  const m=await fetchMap(f.lat,f.lon,SEASON,560,{});
+  const c=m.canvas.getContext("2d");
+  grid(c,560,SEASON);lzMark(c,560,[50],SEASON,null);northArrow(c,560,52);
+  scaleBar(c,560,SEASON);
+  if(FIX===f)$("quick").src=m.canvas.toDataURL("image/jpeg",.85)}
+
+async function metaLook(f){
+  WP_CAP=null;WP_TER=null;WP_ADV=null;
+  elevation(f.lat,f.lon).then(t=>{if(FIX===f)WP_TER=t}).catch(()=>{});
+  const cap=await captureInfo(f.lat,f.lon);if(FIX!==f)return;
+  WP_CAP=cap;WP_ADV=seasonAdvice(f.lat,cap.dt);
+  const[age,days]=ageText(cap.dt);
+  const adv=WP_ADV;
+  $("meta").innerHTML+=`<span class="badge ${days&&days>550?"warn":"ok"}">imagery ${cap.dateStr||"?"} · ${age}</span>`;
+  const n=document.createElement("div");
+  n.className="note"+(adv.mismatch?" warn":"");n.textContent=adv.text;$("meta").appendChild(n)}
+
+function setProg(t,pct){$("prog").innerHTML=t;$("bari").style.width=(pct||0)+"%"}
+
+async function build(){
+  const f=FIX;if(!f)return;
+  const name=$("nm").value.trim()||"LANDING POINT";
+  $("build").disabled=true;$("out").innerHTML="";BUILT=[];
+  try{
+    setProg("Reading imagery dates…",6);
+    const[cap,ways,ter]=await Promise.all([
+      captureInfo(f.lat,f.lon),waybackCaptures(f.lat,f.lon),elevation(f.lat,f.lon)]);
+    const others=ways.map(w=>w.capture||w.date).filter(d=>d!==cap.dateStr);
+    DTG=dtg();
+    const capLine="Esri · "+(cap.dateStr||"date n/k");
+    const adv=seasonAdvice(f.lat,cap.dt);
+    const total=SEQ.length;
+
+    for(let i=0;i<total;i++){
+      const[span,label]=SEQ[i];
+      setProg(`Rendering the sequence… <b>${i+1}/${total}</b>`,10+i*14);
+      const cv=await step(f,span,MAP_PX,label,i+1,total,{
+        nextSpan:i+1<total?SEQ[i+1][0]:null, labels:i===0,
+        rings:span<=200?[25,50]:null, cap:capLine, name});
+      add(cv,`${slug(name)}_${DTG}_${i+1}_${label.toLowerCase().replace(/ /g,"_")}.jpg`,
+          `${i+1} of ${total} — ${label}, ${spanLabel(span)} across`)}
+
+    setProg("Building the detail card…",84);
+    add(cardCanvas(f,name,cap,ter,adv,others),
+        `${slug(name)}_${DTG}_${total+1}_detail.jpg`,"Detail card — grid, ground and imagery age");
+
+    // other looks at the same spot: Esri's dated captures, plus Mapbox undated
+    const comp=ways.filter(w=>(w.capture||w.date)!==cap.dateStr).slice(0,3).map(w=>({url:WB(w.holder||w.id),
+      label:w.capture||w.date, cap:`Esri · ${w.res||"?"} m/px · ${w.sensor||""}`}));
+    if(MAPBOX_TOKEN)comp.push({url:MAPBOX,label:"MAPBOX",
+      cap:"Mapbox · capture date not published"});
+    if(comp.length>1){
+      setProg("Pulling other looks at the spot…",92);
+      const cells=[];
+      for(const cc of comp.slice(0,4))
+        cells.push(await step(f,SEASON,760,cc.label,1,1,
+          {tileUrl:cc.url,rings:[50],cap:cc.cap,name,step:false}));
+      const cols=Math.min(2,cells.length),rows=Math.ceil(cells.length/cols),
+            cw=cells[0].width,ch=cells[0].height;
+      const sh=document.createElement("canvas");
+      sh.width=SIDE*2+cols*cw+(cols-1)*20;sh.height=126+rows*(ch+20);
+      const sc=sh.getContext("2d");sc.fillStyle=BGC;sc.fillRect(0,0,sh.width,sh.height);
+      sc.fillStyle=FILLC;sc.fillRect(0,0,sh.width,6);
+      T(sc,SIDE+6,26,"THE SAME SPOT, OTHER LOOKS",FN(800,38),INK,"left","top",0);
+      T(sc,SIDE+6,76,spanLabel(SEASON)+" across · which one matches the ground today?",
+        FN(400,24),DIMC,"left","top",0);
+      cells.forEach((cc,i)=>sc.drawImage(cc,SIDE+(i%cols)*(cw+20),126+((i/cols)|0)*(ch+20)));
+      const spare=cols*rows-cells.length;
+      if(spare&&adv){
+        const i=cells.length,bx=SIDE+(i%cols)*(cw+20),by=126+((i/cols)|0)*(ch+20);
+        sc.fillStyle=PANC;sc.fillRect(bx,by,cw,ch);
+        sc.fillStyle=adv.mismatch?WARNC:"#5fcd87";sc.fillRect(bx,by,8,ch);
+        const fo=FN(800,27);sc.font=fo;let line="",lines=[];
+        for(const w of adv.text.split(" ")){const t=(line+" "+w).trim();
+          if(sc.measureText(t).width>cw-70){lines.push(line);line=w}else line=t}
+        lines.push(line);
+        lines.slice(0,6).forEach((ln,j)=>T(sc,bx+34,by+40+j*38,ln,fo,
+          adv.mismatch?WARNC:"#9be4b4","left","top",0))}
+      add(sh,`${slug(name)}_${DTG}_${total+2}_compare.jpg`,"Other looks — which season matches today")}
+
+    // the latest Sentinel-2 pass — recent, dated, free. Ground state, not detail.
+    let latest=null;
+    if($("s2on").checked){
+      setProg("Looking for the latest Sentinel-2 pass…",95);
+      latest=await s2Latest(f.lat,f.lon,S2_SPAN,MAP_PX,s=>setProg(
+        `Reading Sentinel-2 pass of ${s.dt.toISOString().slice(0,10)}…`,96));
+      if(latest){
+        const lp=await step(f,S2_SPAN,MAP_PX,"LATEST PASS",1,1,{image:latest.canvas,rings:null,
+          cap:s2Caption(latest),name,step:false,chipText:"RECENT PASS — GROUND STATE, NOT DETAIL",
+          chipFg:"#bee6ff",chipBg:"rgba(10,70,110,.85)"});
+        add(lp,`${slug(name)}_${DTG}_${BUILT.length+1}_latest_pass.jpg`,
+            `Latest pass — ${s2Caption(latest)}`)}}
+    const s2line=latest
+      ?`Latest Sentinel-2 pass ${latest.dt.toISOString().slice(0,10)} (${latest.ageDays} days ago), ~${latest.cloudPct.toFixed(0)}% cloud over the area — see LATEST PASS image for current ground state`
+      :($("s2on").checked?"No usable Sentinel-2 pass in the last 60 days (cloud)":"");
+    const lines=[`LZ: ${name}`,`DTG ${dtg(false)}`,`MGRS  ${toMGRS(f.lat,f.lon)}`,`DDM   ${ddm(f.lat,f.lon)}`,
+      `DD    ${f.lat.toFixed(6)}, ${f.lon.toFixed(6)}`,`DMS   ${dms(f.lat,f.lon)}`,"",
+      ter?`Elevation ${ter.m.toFixed(0)} m / ${ter.ft.toFixed(0)} ft AMSL`:"",
+      ter?`Slope up to ${ter.slopeDeg.toFixed(1)} deg within ${ter.radius} m`:"",
+      `Imagery ${cap.dateStr||"?"} (${ageText(cap.dt)[0]}), ${cap.res||"?"} m/px ${cap.sensor||""}`.trim(),
+      others.length?`Other captures held: ${others.slice(0,4).join(", ")}`:"",
+      adv.text,s2line,
+      `https://maps.google.com/?q=${f.lat.toFixed(6)},${f.lon.toFixed(6)}`,"",
+      `${total} views, widest first — swipe through to the point. `+
+      "Yellow corners mark what the next view covers."].filter(Boolean).join("\n");
+    showOut(lines);
+    setProg("Ready — send it.",100)
+  }catch(e){setProg("",0);
+    $("out").innerHTML=`<div class="card"><div class="err">Could not build the brief: ${e.message}. Check the connection and try again.</div></div>`}
+  finally{$("build").disabled=false}}
+
+const slug=s=>s.replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,28)||"LZ";
+function add(canvas,filename,caption){BUILT.push({canvas,filename,caption})}
+
+function showOut(text){
+  const o=$("out");o.innerHTML="";
+  const share=document.createElement("div");share.className="card";
+  share.innerHTML=`<label class="lab">Send it</label><div class="row">
+    <button class="wa" id="sh" disabled>Preparing images…</button>
+    <button id="shtxt">Share the text</button>
+    <button id="dl">Save images</button></div>
+    <div class="pill" id="shnote">Send as <b>HD / original quality</b> — standard quality shrinks the ladder.
+      Images and text go as two sends: WhatsApp drops attachments when they are mixed with a message.</div>`;
+  o.appendChild(share);
+
+  for(const b of BUILT){
+    const card=document.createElement("div");card.className="card";
+    card.innerHTML=`<label class="lab">${b.caption}</label>`;
+    const w=document.createElement("div");w.className="prev";
+    w.innerHTML='<span class="c n">N</span><span class="c s">S</span><span class="c w">W</span><span class="c e">E</span>';
+    const im=new Image();im.src=b.canvas.toDataURL("image/jpeg",.9);b.dataUrl=im.src;
+    w.appendChild(im);card.appendChild(w);
+    const one=document.createElement("button");
+    one.textContent="Send just this one";one.style.marginTop="8px";
+    one.onclick=()=>shareFiles(b.file?[b.file]:[],one,"Send just this one");
+    card.appendChild(one);
+    o.appendChild(card)}
+
+  const t=document.createElement("div");t.className="card";
+  t.innerHTML=`<label class="lab">Text to paste with them</label>
+    <textarea id="txt" style="min-height:190px;font-family:ui-monospace,Menlo,monospace;font-size:13px"></textarea>
+    <div class="row" style="margin-top:9px"><button id="ct">Copy text</button></div>`;
+  o.appendChild(t);$("txt").value=text;
+  $("ct").onclick=()=>{navigator.clipboard.writeText(text);
+    $("ct").textContent="Copied";setTimeout(()=>$("ct").textContent="Copy text",900)};
+  $("dl").onclick=()=>{for(const b of BUILT){const a=document.createElement("a");
+    a.href=b.dataUrl;a.download=b.filename;a.click()}};
+  $("shtxt").onclick=()=>{
+    if(navigator.share)navigator.share({text}).catch(()=>{});
+    else window.open("https://wa.me/?text="+encodeURIComponent(text),"_blank")};
+
+  /* Build the File objects NOW, not inside the click handler. iOS only honours
+     navigator.share while the tap is still "active"; encoding three full-size
+     JPEGs first blows that window, and the share arrives with files missing. */
+  Promise.all(BUILT.map(b=>new Promise(res=>
+    b.canvas.toBlob(bl=>{
+      b.file=bl?new File([bl],b.filename,{type:"image/jpeg"}):null;res()},"image/jpeg",.92))))
+  .then(()=>{
+    const btn=$("sh"),files=BUILT.map(b=>b.file).filter(Boolean);
+    btn.disabled=false;
+    btn.textContent=`Share ${files.length} image${files.length>1?"s":""} to WhatsApp`;
+    btn.onclick=()=>shareFiles(files,btn,btn.textContent)})}
+
+/* One share call, made straight off the tap, with files only and no message text.
+   If the target refuses the whole set, fall back to sending them one at a time. */
+function shareFiles(files,btn,label){
+  if(!files.length)return;
+  const note=$("shnote");
+  const fail=msg=>{if(note)note.innerHTML=msg};
+  if(!navigator.share){
+    for(const b of BUILT){if(!files.includes(b.file))continue;
+      const a=document.createElement("a");a.href=b.dataUrl;a.download=b.filename;a.click()}
+    fail("This browser cannot share files — the images have been saved instead.");return}
+  if(navigator.canShare&&!navigator.canShare({files})){
+    shareOneByOne(files,0,fail);return}
+  navigator.share({files})
+    .then(()=>{if(btn){btn.textContent="Sent";setTimeout(()=>btn.textContent=label,1400)}})
+    .catch(err=>{
+      if(err&&err.name==="AbortError")return;                 // user backed out
+      shareOneByOne(files,0,fail)})}
+
+function shareOneByOne(files,i,fail,sent=0){
+  const n=files.length;
+  if(i>=n){fail(`Sent ${sent} of ${n} one at a time. Any missing: use <b>Send just this one</b> under that image.`);return}
+  fail(`Sharing one at a time — WhatsApp would not take the whole set. Sent ${sent} of ${n}…`);
+  navigator.share({files:[files[i]]})
+    .then(()=>setTimeout(()=>shareOneByOne(files,i+1,fail,sent+1),400))
+    .catch(()=>fail(`Sent ${sent} of ${n}. The browser stopped the rest — use <b>Send just this one</b> under each remaining image.`))}
+
+
+/* ─────────────── read a GCS / screen photo: on-device OCR ───────────────
+   Tesseract.js (Apache-2.0) self-hosted in vendor/ — engine, WASM core and the
+   English model live beside this page and are precached by the service worker,
+   so the photo never leaves the device and it works with no signal. The OSD on
+   a ground-station screen is light text on a dark strip: those strips are found
+   by row brightness, cut out and read on their own, which is what turns a
+   noisy photo-of-a-screen into a clean line of digits. TGT wins over ACFT. */
+/* The engine, its worker, the WASM core and the language model are all
+   self-hosted in vendor/ alongside this page and loaded only when "Read a
+   screen photo" is used — nothing is fetched from a CDN and no photo leaves the
+   device. (They were briefly carried inside this file as base64, to work around
+   GitHub refusing to accept worker.min.js. It accepts it now, and 270 KB of
+   base64 in every page load is a poor trade for crews who never touch OCR.) */
+let OCRW=null;
+async function ocrEngine(onStatus){
+  if(OCRW)return OCRW;
+  const base=new URL("../vendor/",location.href).href;   // beta reuses the live pack
+  if(!window.Tesseract){onStatus&&onStatus("Loading the OCR engine…");
+    await new Promise((res,rej)=>{const s=document.createElement("script");
+      s.src=base+"tesseract.min.js";s.onload=res;
+      s.onerror=()=>rej(new Error("OCR engine did not load"));document.head.appendChild(s)})}
+  onStatus&&onStatus("Starting the OCR engine…");
+  OCRW=await Tesseract.createWorker("eng",1,{workerPath:base+"worker.min.js",
+    corePath:base+"tesseract-core-simd-lstm.wasm.js",langPath:base.replace(/\/$/,""),
+    gzip:true,workerBlobURL:false,cacheMethod:"none"});
+  await OCRW.setParameters({preserve_interword_spaces:"1"});
+  return OCRW}
+
+/* A browser can only decode what a browser can decode. Camera RAW and video
+   never load, and .HEIC opens on Safari but not on Chrome or Android. The old
+   message for all of these was "not an image", which tells a crew nothing about
+   what to send instead. */
+const RAW_EXT=/\.(dng|cr2|cr3|nef|arw|raf|orf|rw2|srw|pef|3fr)$/i;
+const VID_EXT=/\.(mov|mp4|m4v|avi|mkv|hevc|3gp|webm)$/i;
+function loadImage(file){
+  const n=file.name||"";
+  if(RAW_EXT.test(n))return Promise.reject(new Error(
+    "that is a camera RAW file \u2014 browsers cannot open RAW. Send the JPEG your phone saved beside it, or a screenshot of the screen"));
+  if(VID_EXT.test(n))return Promise.reject(new Error(
+    "that is a video \u2014 take a screenshot of the frame you want and use that"));
+  return new Promise((res,rej)=>{const u=URL.createObjectURL(file),im=new Image();
+    im.onload=()=>{URL.revokeObjectURL(u);res(im)};
+    im.onerror=()=>{URL.revokeObjectURL(u);rej(new Error(/\.(heic|heif)$/i.test(n)
+      ?"this device cannot open .HEIC photos. On iPhone: Settings \u2192 Camera \u2192 Formats \u2192 Most Compatible, or share the photo as a JPEG"
+      :"that file is not an image this browser can open"))};
+    im.src=u})}
+
+/* ---------------------------------------------------------------------------
+   Finding the data strip on a photo of a ground-station screen.
+
+   Three approaches were tried against ten real GCS photos Rob supplied.
+
+   1. Row luminance across the full width — what this tool did first. It only
+      works when the OSD is a dark band spanning the whole picture. In a real
+      photo the screen is a bright rectangle inside a larger frame and the OSD
+      is a translucent grey strip: its full-row average is nowhere near dark,
+      the band is never found, and the whole frame gets read as mush.
+   2. Bright-stroke edge density per row. Better, but dense vegetation makes
+      the same signal: on two of the ten photos every row scored above the
+      threshold and the runs merged into one blob spanning half the picture.
+   3. What is here: find character-shaped blobs, then group them into lines.
+      A character is a small connected component, no more than about three
+      times as wide as it is tall, partly filled, and locally brighter (or
+      darker) than its surroundings. Vegetation makes components too, but they
+      are the wrong shape and they do not sit in a row of five or more with
+      matching heights and even spacing. That last property is what no amount
+      of scenery reproduces, and it is what this keys on.
+
+   Mirrors cli/osdfind.py line for line. Keep the two in step.
+--------------------------------------------------------------------------- */
+
+/* mean over a (2r+1) square, edges clamped, by running sums — one pass each way */
+function boxMean(src,W,H,r){
+  const tmp=new Float32Array(W*H),out=new Float32Array(W*H),n=2*r+1;
+  for(let y=0;y<H;y++){const o=y*W;let s=0;
+    for(let x=-r;x<=r;x++)s+=src[o+Math.min(W-1,Math.max(0,x))];
+    for(let x=0;x<W;x++){tmp[o+x]=s/n;
+      s+=src[o+Math.min(W-1,x+r+1)]-src[o+Math.max(0,x-r)]}}
+  for(let x=0;x<W;x++){let s=0;
+    for(let y=-r;y<=r;y++)s+=tmp[Math.min(H-1,Math.max(0,y))*W+x];
+    for(let y=0;y<H;y++){out[y*W+x]=s/n;
+      s+=tmp[Math.min(H-1,y+r+1)*W+x]-tmp[Math.max(0,y-r)*W+x]}}
+  return out}
+
+/* Sauvola-style local threshold. pol 1 = light text on a darker ground. */
+function osdBinarise(a,W,H,win,pol){
+  const r=Math.max(1,(win-1)>>1),k=0.18;
+  const sq=new Float32Array(W*H);for(let i=0;i<W*H;i++)sq[i]=a[i]*a[i];
+  const m=boxMean(a,W,H,r),m2=boxMean(sq,W,H,r),b=new Uint8Array(W*H);
+  for(let i=0;i<W*H;i++){const sd=Math.sqrt(Math.max(m2[i]-m[i]*m[i],0));
+    if(pol>0){const t=Math.max(m[i]*(1+k*(sd/128-1)),m[i]+6);b[i]=a[i]>t?1:0}
+    else{const t=Math.min(m[i]*(1-k*(sd/128-1)),m[i]-6);b[i]=a[i]<t?1:0}}
+  return b}
+
+/* bounding boxes of blobs the right shape to be characters */
+function osdChars(a,W,H,win,pol,hmin,hmax){
+  const b=osdBinarise(a,W,H,win,pol),seen=new Uint8Array(W*H),st=new Int32Array(W*H),out=[];
+  for(let i=0;i<W*H;i++){
+    if(!b[i]||seen[i])continue;
+    let sp=0;st[sp++]=i;seen[i]=1;
+    let x0=i%W,x1=x0,y0=(i/W)|0,y1=y0,area=0;
+    while(sp){const p=st[--sp],px=p%W,py=(p/W)|0;area++;
+      if(px<x0)x0=px;if(px>x1)x1=px;if(py<y0)y0=py;if(py>y1)y1=py;
+      for(let dy=-1;dy<=1;dy++){const ny=py+dy;if(ny<0||ny>=H)continue;
+        for(let dx=-1;dx<=1;dx++){const nx=px+dx;if(nx<0||nx>=W)continue;
+          const q=ny*W+nx;if(b[q]&&!seen[q]){seen[q]=1;st[sp++]=q}}}}
+    const h=y1-y0+1,w=x1-x0+1;
+    if(h<hmin||h>hmax||w>h*3)continue;
+    const fill=area/(h*w);if(fill<0.06||fill>0.97)continue;
+    out.push([x0,y0,x1+1,y1+1,h])}
+  return out}
+
+/* least-squares slope of a chain's baseline, clamped to about 12 degrees */
+function osdSlope(ch){
+  let sx=0,sy=0;for(const c of ch){sx+=(c[0]+c[2])*0.5;sy+=c[3]}
+  const mx=sx/ch.length,my=sy/ch.length;let num=0,den=0;
+  for(const c of ch){const vx=(c[0]+c[2])*0.5-mx;num+=vx*(c[3]-my);den+=vx*vx}
+  if(den<1e-6)return 0;
+  return Math.max(-0.21,Math.min(0.21,num/den))}
+
+/* Chain characters into text lines: similar height, on the same baseline,
+   close in x. The baseline is tracked as a slope, not a constant — a hand-held
+   photo of a screen is a couple of degrees out of level, and over the width of
+   an OSD line that is more drift than the text is tall. A fixed test breaks the
+   chain in the middle and, worse, hands the row's first word to the line above:
+   that is how "TGT:" ended up on the aircraft's line. */
+function osdRows(chars,xgap){
+  xgap=xgap||1.6;if(!chars.length)return[];
+  const cs=chars.slice().sort((a,b)=>a[0]-b[0]),used=new Uint8Array(cs.length),rows=[];
+  for(let i=0;i<cs.length;i++){
+    if(used[i])continue;used[i]=1;
+    const ch=[cs[i]];let cur=cs[i],sl=0;
+    for(let j=i+1;j<cs.length;j++){
+      if(used[j])continue;const d=cs[j];
+      const hr=Math.max(cur[4],d[4])/Math.max(1,Math.min(cur[4],d[4]));
+      if(hr>2)continue;
+      const gap=d[0]-cur[2];if(gap< -cur[4]||gap>cur[4]*xgap)continue;
+      const dx=(d[0]+d[2])*0.5-(cur[0]+cur[2])*0.5,want=cur[3]+sl*dx;
+      if(Math.abs(d[3]-want)>0.45*Math.min(cur[4],d[4]))continue;
+      used[j]=1;ch.push(d);if(ch.length>=3)sl=osdSlope(ch);cur=d}
+    if(ch.length>=5)rows.push(ch)}
+  return osdMergeCollinear(rows)}
+
+/* One OSD line is several columns with wide gaps between them:
+
+     ACFT:  11°55'31.051"N      7° 4'22.588"E      HMSL: 1650m
+
+   Chaining stops at each gap, so the latitude, the longitude and the altitude
+   come out as three separate runs and no run carries a whole coordinate. Runs
+   that share a baseline and a text height are the same physical line, so join
+   them — here, on runs already proven to be text, rather than by loosening the
+   chain gap, which would let scenery in. */
+function osdMergeCollinear(rows,gapMult){
+  gapMult=gapMult||7;if(rows.length<2)return rows;
+  const ext=r=>{let a=1e9,b=1e9,c=-1e9,d=-1e9,h=0;
+    for(const q of r){a=Math.min(a,q[0]);b=Math.min(b,q[1]);c=Math.max(c,q[2]);d=Math.max(d,q[3]);h+=q[4]}
+    return[a,b,c,d,h/r.length]};
+  const items=rows.map(r=>({e:ext(r),r:r})).sort((p,q)=>p.e[0]-q.e[0]);
+  const used=new Uint8Array(items.length),out=[];
+  for(let i=0;i<items.length;i++){
+    if(used[i])continue;used[i]=1;
+    let cur=items[i].e,ch=items[i].r.slice();
+    for(let j=i+1;j<items.length;j++){
+      if(used[j])continue;const f=items[j].e;
+      const hr=Math.max(cur[4],f[4])/Math.max(1,Math.min(cur[4],f[4])),gap=f[0]-cur[2];
+      const sl=ch.length>=3?osdSlope(ch):0;
+      const want=cur[3]+sl*((f[0]+f[2])*0.5-(cur[0]+cur[2])*0.5);
+      const ov=Math.min(cur[4],f[4])-Math.abs(f[3]-want);
+      if(hr<1.35&&ov>0.35*Math.min(cur[4],f[4])&&gap>-cur[4]&&gap<cur[4]*gapMult){
+        used[j]=1;ch=ch.concat(items[j].r);
+        cur=[Math.min(cur[0],f[0]),Math.min(cur[1],f[1]),
+             Math.max(cur[2],f[2]),Math.max(cur[3],f[3]),(cur[4]+f[4])*0.5]}}
+    out.push(ch)}
+  return out}
+
+function osdBoxOverlap(p,q){
+  const ix=Math.min(p[2],q[2])-Math.max(p[0],q[0]),iy=Math.min(p[3],q[3])-Math.max(p[1],q[1]);
+  if(ix<=0||iy<=0)return 0;
+  return ix*iy/Math.max(1,Math.min((p[2]-p[0])*(p[3]-p[1]),(q[2]-q[0])*(q[3]-q[1])))}
+
+/* text lines, best first; boxes in source pixels of the buffer they came from */
+function osdLines(grey,W,H,scale,minChars){
+  minChars=minChars||5;
+  const hmin=Math.max(6,H*0.008),hmax=H*0.075;
+  let win=Math.round(Math.max(15,Math.min(101,hmax*2)));if(!(win&1))win++;
+  const found=[];
+  for(const pol of[1,-1]){
+    for(const ch of osdRows(osdChars(grey,W,H,win,pol,hmin,hmax))){
+      if(ch.length<minChars)continue;
+      let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9,hs=0,hs2=0;
+      for(const c of ch){x0=Math.min(x0,c[0]);y0=Math.min(y0,c[1]);
+        x1=Math.max(x1,c[2]);y1=Math.max(y1,c[3]);hs+=c[4];hs2+=c[4]*c[4]}
+      const n=ch.length,hm=hs/n,hcv=Math.sqrt(Math.max(hs2/n-hm*hm,0))/Math.max(1,hm);
+      const xc=ch.map(c=>(c[0]+c[2])*0.5).sort((a,b)=>a-b);
+      let pcv=1;
+      if(xc.length>1){const dx=[];for(let i=1;i<xc.length;i++)dx.push(xc[i]-xc[i-1]);
+        const dm=dx.reduce((a,b)=>a+b,0)/dx.length;
+        let v=0;for(const d of dx)v+=(d-dm)*(d-dm);
+        pcv=Math.sqrt(v/dx.length)/Math.max(1,dm)}
+      let wsum=0;for(const c of ch)wsum+=c[2]-c[0];
+      const fill=wsum/Math.max(1,x1-x0);
+      const score=Math.sqrt(n)/(1+3*hcv+1.2*pcv)*Math.min(1,fill*2.5);
+      found.push({box:[x0/scale,y0/scale,x1/scale,y1/scale],score:score,
+                  height:(y1-y0)/scale,chars:n,polarity:pol})}}
+  found.sort((a,b)=>b.score-a.score);
+  const keep=[];
+  for(const b of found){if(keep.some(k=>osdBoxOverlap(b.box,k.box)>0.55))continue;keep.push(b)}
+  return keep}
+
+/* Group lines that sit directly under one another into blocks. The JOUAV OSD
+   is always two stacked lines — aircraft above, target below — so the block,
+   not the line, is the unit the reader reasons about. */
+function osdBlocks(ls,gapMult){
+  gapMult=gapMult||1.4;if(!ls.length)return[];
+  const byy=ls.slice().sort((a,b)=>a.box[1]-b.box[1]),groups=[];let cur=[byy[0]];
+  for(let i=1;i<byy.length;i++){const b=byy[i],prev=cur[cur.length-1];
+    const gap=b.box[1]-prev.box[3];
+    const ov=Math.min(prev.box[2],b.box[2])-Math.max(prev.box[0],b.box[0]);
+    const narrow=Math.min(prev.box[2]-prev.box[0],b.box[2]-b.box[0]);
+    const hr=Math.max(prev.height,b.height)/Math.max(1,Math.min(prev.height,b.height));
+    if(gap<prev.height*gapMult&&ov>narrow*0.35&&hr<1.8)cur.push(b);else{groups.push(cur);cur=[b]}}
+  groups.push(cur);
+  const out=groups.map(g=>{g=g.slice().sort((a,b)=>a.box[1]-b.box[1]);
+    const x0=Math.min(...g.map(b=>b.box[0])),x1=Math.max(...g.map(b=>b.box[2]));
+    const y0=Math.min(...g.map(b=>b.box[1])),y1=Math.max(...g.map(b=>b.box[3]));
+    return{box:[x0,y0,x1,y1],lines:g,height:g[0].height,
+           score:g.reduce((s,b)=>s+b.score,0)*(1+0.6*(g.length-1))}});
+  out.sort((a,b)=>b.score-a.score);return out}
+
+/* Deskew angle for one block, degrees, positive anticlockwise.
+
+   Text lines are horizontal, so the row profile of a level block is a comb —
+   tall peaks on the text, near zero between the lines — and a tilted one is
+   smeared flat. The angle whose profile is most peaked is the tilt. The profile
+   is taken by shearing the row index rather than rotating pixels: the same
+   thing for angles this small, and cheap enough to run on a phone. Bins run
+   past both ends so no pixel is ever clamped — clamping piles the sheared tail
+   into the edge bins and the most extreme angle then always wins. */
+function osdSkew(img,box,span,step){
+  span=span||6;step=step||0.5;
+  const pad=(box[3]-box[1])*0.4;
+  const cw=Math.round(box[2]-box[0]),chh=Math.round(Math.min(img.h,box[3]+pad)-Math.max(0,box[1]-pad));
+  if(cw<40||chh<8)return 0;
+  const g=osdGreyOf(img,box[0],Math.max(0,box[1]-pad),cw,chh,900),W=g.W,H=g.H,a=g.a;
+  const win=Math.max(5,(H>>1)|1),m=boxMean(a,W,H,(win-1)>>1),e=new Float32Array(W*H);
+  for(let i=0;i<W*H;i++)e[i]=Math.max(Math.abs(a[i]-m[i])-6,0);
+  const off=Math.ceil(Math.abs(Math.tan(span*Math.PI/180))*W*0.5)+2,nb=H+2*off;
+  let best=-1,bang=0;
+  for(let ang=-span;ang<=span+1e-9;ang+=step){
+    const sl=-Math.tan(ang*Math.PI/180),p=new Float64Array(nb);
+    for(let y=0;y<H;y++){const o=y*W;
+      for(let x=0;x<W;x++){const v=e[o+x];if(!v)continue;
+        p[Math.round(y+sl*(x-W*0.5))+off]+=v}}
+    let s=0;for(let i=0;i<nb;i++)s+=p[i];const mu=s/nb;
+    let v=0;for(let i=0;i<nb;i++){const d=p[i]-mu;v+=d*d}
+    v/=nb;if(v>best){best=v;bang=ang}}
+  return Math.round(bang*100)/100}
+
+/* the working picture: the photo drawn 1:1, or straightened first. Capped so a
+   12-megapixel phone photo still fits a canvas on an iPad. */
+const OSD_MAXPX=14e6;
+function osdCanvas(img,angle){
+  let W0=img.naturalWidth||img.width,H0=img.naturalHeight||img.height;
+  let k=Math.min(1,Math.sqrt(OSD_MAXPX/(W0*H0)));
+  const t=(angle||0)*Math.PI/180,ca=Math.abs(Math.cos(t)),sa=Math.abs(Math.sin(t));
+  const W=Math.max(1,Math.round((W0*ca+H0*sa)*k)),H=Math.max(1,Math.round((W0*sa+H0*ca)*k));
+  const cv=document.createElement("canvas");cv.width=W;cv.height=H;
+  const c=cv.getContext("2d",{willReadFrequently:true});c.imageSmoothingQuality="high";
+  c.translate(W/2,H/2);c.rotate(-t);c.drawImage(img,-W0*k/2,-H0*k/2,W0*k,H0*k);
+  return cv}
+
+/* greyscale buffer of a region of the working picture, at most maxW wide */
+function osdGrey(cv,sx,sy,sw,sh,maxW){
+  const s=Math.min(1,maxW/sw),W=Math.max(1,Math.round(sw*s)),H=Math.max(1,Math.round(sh*s));
+  const t=document.createElement("canvas");t.width=W;t.height=H;
+  const c=t.getContext("2d",{willReadFrequently:true});c.imageSmoothingQuality="high";
+  c.drawImage(cv,sx,sy,sw,sh,0,0,W,H);
+  const d=c.getImageData(0,0,W,H).data,a=new Float32Array(W*H);
+  for(let i=0,j=0;i<a.length;i++,j+=4)a[i]=0.299*d[j]+0.587*d[j+1]+0.114*d[j+2];
+  return{a:a,W:W,H:H,scale:s}}
+function osdGreyOf(img,x,y,w,h,maxW){return osdGrey(img.cv,x,y,w,h,maxW)}
+
+/* Detect once, measure the tilt of the best block, and if it is worth
+   correcting, straighten the whole picture and detect again. The second pass
+   gets whole lines — including the label at the start of the row, which on a
+   tilted line is the part that breaks away first and lands on the row above. */
+function osdFind(img,width){
+  width=width||1600;
+  let cv=osdCanvas(img,0);
+  const pass=c=>{const g=osdGrey(c,0,0,c.width,c.height,width);
+    return osdBlocks(osdLines(g.a,g.W,g.H,g.scale))};
+  let bs=pass(cv);
+  if(!bs.length)return{cv:cv,blocks:bs,angle:0};
+  /* measured on the best block's first line, not the block: a block can pick
+     up a stray line from elsewhere on the screen at its own tilt, and the
+     averaged profile then peaks at zero on a picture that is plainly askew. */
+  const ang=osdSkew({cv:cv,h:cv.height},bs[0].lines[0].box);
+  if(Math.abs(ang)<0.45)return{cv:cv,blocks:bs,angle:0};
+  const rc=osdCanvas(img,ang),bs2=pass(rc);
+  /* the angle is a measurement off a real text line, not a guess, so it is
+     trusted unless straightening plainly destroyed the detection */
+  if(bs2.length&&bs2[0].score>=bs[0].score*0.6)return{cv:rc,blocks:bs2,angle:ang};
+  return{cv:cv,blocks:bs,angle:0};}
+
+/* padded crop of one line or block, scaled so the text is targetH px tall —
+   Tesseract wants roughly 30–40 px of cap height, and small text on a low-
+   resolution photo only reads once it has been blown up. Vertical padding is
+   tighter than horizontal on purpose: OSD lines are stacked close together and
+   half a line of the neighbour bleeding in is read as a second line of text. */
+function osdCrop(cv,box,targetH){
+  const h=box[3]-box[1],pad=h*0.6,vpad=h*0.28;
+  const x0=Math.max(0,Math.round(box[0]-pad)),y0=Math.max(0,Math.round(box[1]-vpad));
+  const x1=Math.min(cv.width,Math.round(box[2]+pad)),y1=Math.min(cv.height,Math.round(box[3]+vpad));
+  const w=Math.max(1,x1-x0),hh=Math.max(1,y1-y0);
+  let s=targetH?targetH/Math.max(1,h):1;s=Math.min(s,9000/w);if(s<0.15)s=0.15;
+  const t=document.createElement("canvas");
+  t.width=Math.max(1,Math.round(w*s));t.height=Math.max(1,Math.round(hh*s));
+  const c=t.getContext("2d",{willReadFrequently:true});c.imageSmoothingQuality="high";
+  c.drawImage(cv,x0,y0,w,hh,0,0,t.width,t.height);
+  const d=c.getImageData(0,0,t.width,t.height),p=d.data;
+  for(let i=0;i<p.length;i+=4){const l=0.299*p[i]+0.587*p[i+1]+0.114*p[i+2];
+    p[i]=p[i+1]=p[i+2]=l;p[i+3]=255}
+  c.putImageData(d,0,0);return t}
+
+/* What OCR does to a coordinate line, undone. Every rule was seen on a real
+   screen photo of the JOUAV ground station: a second ° where the minute mark
+   belongs (7° 4°22.588"E), the decimal point in the seconds dropped (54491") or
+   read as a space (22 588") or as a comma (22,555"), both separators gone at
+   once on a low-resolution shot (5725533"), ° or ' where the closing " should
+   be (17.850°N), letter O for zero and T for one inside a number.
+
+   The last rule is the one that recovers the most readings. OCR often
+   hallucinates a character in the gap between the latitude and the longitude —
+   a bracket, an underscore, a full stop — and that alone splits the pair and
+   throws the whole line away even though both halves read perfectly.
+
+   No lookbehind: it is unsupported on older iOS Safari, and a syntax error
+   here would take the whole app down, not just OCR. Mirrors cli/lzocr.py
+   fix_text() rule for rule, in the same order. */
+const DMSP="(\\d{1,3}\\s*[°º]\\s*\\d{1,2}\\s*['′]\\s*)";
+function ocrFix(t){
+  return normalise(t)
+    // letter-for-digit confusions, but only with a digit on each side: the OSD
+    // never puts a lone letter inside a number, so this is safe where a blanket
+    // substitution would not be. Each was seen on a real screen photo.
+    .replace(/(\d)[oOQ](?=\d)/g,(m,a)=>a+"0")
+    .replace(/(\d)[TIl](?=\d)/g,(m,a)=>a+"1")                                  // 29.9T9
+    .replace(/(\d)B(?=\d)/g,(m,a)=>a+"8")                                      // 38.8B0
+    .replace(/(\d)S(?=\d)/g,(m,a)=>a+"5")
+    .replace(/(\b\d{1,3})["″](?=\d{1,2}\s*['′])/g,"$1°")                        // 5"19'20.218
+    .replace(/([°º]\s*\d{1,2})[°º](?=\d{2})/g,"$1'")                           // 7° 4°22.588"
+    .replace(/(['′]\s*\d{1,2})['′](?=\d{2,3})/g,"$1.")                         // 33'19'422"
+    .replace(/(\d{1,2}),(\d{1,3})(?=\s*["″]?\s*[NSEW](?![A-Za-z]))/g,"$1.$2")  // 22,555"N
+    .replace(new RegExp(DMSP+'(\\d{2})[ ]?(\\d{3})(?=\\s*["″°º]|\\s*[NSEW](?![A-Za-z]))',"g"),"$1$2.$3")
+    .replace(/([°º]\s*)(\d{1,2})(\d{2})[.,](\d{3})(?=\s*["″°º]|\s*[NSEW](?![A-Za-z]))/g,"$1$2'$3.$4")
+    .replace(new RegExp(DMSP+'(\\d{1,2}(?:[.,]\\d+)?)\\s*[°º*\'′"″´`]{1,2}\\s*(?=[NSEW](?![A-Za-z]))',"g"),'$1$2"')
+    .replace(/(\d)\s*(?:''|´´|``)\s*(?=[NSEW]\b)/g,'$1"')
+    .replace(/(\d{1,3})\s*[°º]\s*(\d{2})(\d{2})(\d{3})\s*["″]?\s*(?=[NSEW](?![A-Za-z]))/g,'$1°$2\'$3.$4"')
+    .replace(/([NSEW\d])\s*\|\s*/g,(m,a)=>a+" ")
+    .replace(/([NSEW])[\s_.,;:*=+~^<>«»‹›·•-]{1,8}(?=\d)/g,(m,a)=>a+" ")}
+
+/* Which line is the target's.
+
+   `perLine` is {line index: label read off that line} for the lines of one
+   block that yielded a coordinate. A label that was read is believed. Beyond
+   that, the JOUAV OSD is a fixed two-line block — aircraft first, target
+   second — so when a block has exactly two coordinate-bearing lines the
+   missing label can be filled in from the order. Without this a Chinese-build
+   screen (本机位置 / 目标位置, which an English model returns as noise) leaves
+   both lines unlabelled, the vote ties, and the tool can hand back the
+   AIRCRAFT's position as the landing point. Placed labels carry a "?" so the
+   reading can say how it knows. */
+function osdLabels(perLine){
+  const out={};for(const k in perLine)out[k]=perLine[k];
+  const order=Object.keys(perLine).map(Number).sort((a,b)=>a-b);
+  if(order.length!==2)return out;
+  const a=order[0],b=order[1];
+  if(out[a]===""&&out[b]==="")     {out[a]="ACFT?";out[b]="TGT?"}
+  else if(out[a]==="ACFT"&&out[b]==="")out[b]="TGT?";
+  else if(out[b]==="TGT"&&out[a]==="") out[a]="ACFT?";
+  else if(out[a]==="TGT"&&out[b]==="") out[b]="ACFT?";
+  else if(out[b]==="ACFT"&&out[a]==="")out[a]="TGT?";
+  return out}
+
+function osdInfer(reads){
+  const byblock={};
+  for(const r of reads){if(r.bi==null||r.li==null)continue;
+    const cur=byblock[r.bi]||(byblock[r.bi]={});
+    cur[r.li]=r.tag||cur[r.li]||""}
+  const inferred={};for(const bi in byblock)inferred[bi]=osdLabels(byblock[bi]);
+  for(const r of reads)if(!r.tag&&inferred[r.bi])r.tag=inferred[r.bi][r.li]||""}
+
+const OCR_HEIGHTS=[34,52,80],OCR_MAXBLOCKS=3,OCR_MAXLINES=4;
+const TGT_WORDS=/\b(TGT|TARGET|TRGT|TAR|OBJ|OBJECTIVE|POI|MARK|LASER|CENTER|CENTRE)\b|目标/i;
+const ACFT_WORDS=/\b(ACFT|AIRCRAFT|A\/?C|UAV|UAS|OWNSHIP|HOME|GCS|PLANE|DRONE)\b|本机/i;
+
+async function readPhoto(file){
+  const st=m=>{$("perr").textContent=m};
+  const btn=$("ocrbtn"),was=btn.textContent;btn.disabled=true;
+  try{
+    const img=await loadImage(file);
+    const w=await ocrEngine(st);
+    st("Finding the data strip…");
+    const f=osdFind(img);
+    if(!f.blocks.length){st("No text could be found on that photo. Fill more of the frame with the screen and try again, or type the coordinate in.");return}
+    const reads=[];let runs=0;
+    // every reading from every pass, labelled by the words on its own line
+    const harvest=(text,bi,li)=>{runs++;
+      for(const line of ocrFix(text).split(/\n+/)){
+        const found=findAll(line);if(!found.length)continue;
+        const L=TGT_WORDS.test(line)?"TGT":ACFT_WORDS.test(line)?"ACFT":"";
+        for(const p of found)reads.push({lat:p.lat,lon:p.lon,tag:L,bi:bi,li:li,
+          line:line.trim().replace(/^[^A-Za-z0-9]+/,"")})}};
+    // A target two independent passes agree on is enough to stop on: the OSD is
+    // block one on every screen we have seen, and reading the rest of the
+    // picture costs a crew time it may not have.
+    const confident=()=>{const seen={};
+      for(const r of reads)if(r.tag&&r.tag.indexOf("TGT")===0){
+        const k=r.lat.toFixed(4)+","+r.lon.toFixed(4);seen[k]=(seen[k]||0)+1}
+      return Object.keys(seen).some(k=>seen[k]>=2)};
+    const nb=Math.min(f.blocks.length,OCR_MAXBLOCKS);
+    for(let bi=0;bi<nb;bi++){
+      const b=f.blocks[bi],nl=Math.min(b.lines.length,OCR_MAXLINES);
+      await w.setParameters({tessedit_pageseg_mode:"7"});      // one line at a time
+      for(let li=0;li<nl;li++)for(const h of OCR_HEIGHTS){
+        const cv=osdCrop(f.cv,b.lines[li].box,h);
+        if(cv.width<30||cv.width>12000)continue;
+        st(`Reading the data strip… ${bi+1}.${li+1}`);
+        harvest((await w.recognize(cv)).data.text,bi,li)}
+      if(b.lines.length>1){
+        await w.setParameters({tessedit_pageseg_mode:"6"});    // the block whole
+        // scaled per line, not per block: at a fixed 40 px a two-line block
+        // gives the recogniser 20 px of text and it starts inventing digits
+        const cv=osdCrop(f.cv,b.box,40*b.lines.length);
+        if(cv.width>30&&cv.width<12000)harvest((await w.recognize(cv)).data.text,bi,null)}
+      osdInfer(reads);
+      if(confident())break}
+    if(!reads.some(r=>r.tag)){
+      await w.setParameters({tessedit_pageseg_mode:"11"});
+      st("Reading the whole frame…");
+      const cv=osdCrop(f.cv,[0,0,f.cv.width,f.cv.height],null);
+      harvest((await w.recognize(cv)).data.text,null,null)}
+    osdInfer(reads);
+    // One cluster per position, not per position-and-label: a reading that lost
+    // its label still corroborates the digits, and pooling the votes is what
+    // separates a coordinate three passes agree on from a one-off. The label is
+    // then decided by majority of the readings that carried one, so a single
+    // misread label cannot flip a position on its own.
+    const near=(a,b)=>Math.abs(a.lat-b.lat)<.001&&Math.abs(a.lon-b.lon)<.001;
+    const clusters=[];
+    for(const r of reads){const c=clusters.find(c=>near(c,r));
+      if(c){c.n++;c.tally[r.tag]=(c.tally[r.tag]||0)+1;if(!c.lines.includes(r.line))c.lines.push(r.line)}
+      else clusters.push({lat:r.lat,lon:r.lon,src:"screen photo (OCR)",n:1,
+        tally:{[r.tag]:1},lines:[r.line],line:r.line})}
+    for(const c of clusters){
+      const read=[],placed=[];
+      for(const k in c.tally){if(!k)continue;(k.slice(-1)==="?"?placed:read).push(k)}
+      const best=a=>a.sort((x,y)=>c.tally[y]-c.tally[x])[0];
+      c.tag=read.length?best(read):placed.length?best(placed):""}
+    /* Class first, then how many passes agree, and only then whether the label
+       was read or placed. Votes must beat a read label: a single pass that
+       misread one digit but did catch the word TGT would otherwise outrank
+       three passes that agree on the digits and knew the line only by its
+       position — which is exactly how a 7 became a 1 in testing. */
+    const rank=c=>{const t=c.tag||"";
+      const cls=t.indexOf("TGT")===0?3:t.indexOf("ACFT")===0?0:2;
+      return cls*1e7+c.n*10+(t.slice(-1)==="?"?0:1)};
+    clusters.sort((a,b)=>rank(b)-rank(a));
+    const isA=t=>t.indexOf("ACFT")===0;
+    const pts=clusters.map(c=>({...c,label:c.tag?c.tag.replace("?",""):undefined,
+      note:isA(c.tag)?"the AIRCRAFT's position, not the target":
+        c.tag==="TGT?"?`the target line by its position in the block — the label itself did not read; ${c.n} of ${runs} passes agree — verify the digits against the screen before you fly`:
+        `read from a photo by OCR, ${c.n} of ${runs} passes agree — verify the digits against the screen before you fly`}));
+    if(!pts.length){st("No coordinate could be read from that photo. Try a straighter, closer shot of the data strip, or type it in.");return}
+    if(pts.every(p=>isA(p.tag))){st("Only the AIRCRAFT position could be read — the target line is not legible. Retake the photo straighter and closer to the screen, or type the target in.");
+      $("inp").value=pts.map(p=>p.line).join("\n");return}
+    $("inp").value=pts.map(p=>p.line).join("\n");     // what was read, in the box, so it can be checked and edited
+    st("");
+    if(pts.length===1){$("pickcard").classList.add("hide");showFix(pts[0]);return}
+    CANDIDATES=pts;$("pickcard").classList.remove("hide");
+    $("pickcard").querySelector(".lab").textContent=`${pts.length} coordinates read from the photo — TGT selected`;
+    $("pts").innerHTML=pts.map((p,i)=>`<li data-i="${i}"${i===0?' class="sel"':''}><b>${p.tag?p.tag.replace("?",""):"Coordinate "+(i+1)}${isA(p.tag)?" — aircraft, not target":p.tag==="TGT?"?" — placed by position":""}</b>`+
+      `${toMGRS(p.lat,p.lon)} · ${p.n} of ${runs} passes · ${p.line.slice(0,50)}</li>`).join("");
+    for(const li of $("pts").children)li.onclick=()=>{for(const o of $("pts").children)o.classList.remove("sel");
+      li.classList.add("sel");showFix(CANDIDATES[+li.dataset.i])};
+    showFix(pts[0]);
+  }catch(e){st("Could not read that photo: "+(e.message||e))}
+  finally{btn.disabled=false;btn.textContent=was}}
+
+$("ocrbtn").onclick=()=>$("ocrfile").click();
+$("ocrfile").onchange=e=>{const f=e.target.files[0];e.target.value="";if(f)readPhoto(f)};
+
+/* input handling */
+let tmr=null;
+$("inp").addEventListener("input",()=>{clearTimeout(tmr);tmr=setTimeout(()=>{
+  const v=$("inp").value.trim();$("perr").textContent="";
+  if(!v){$("pickcard").classList.add("hide");$("fixcard").classList.add("hide");FIX=null;return}
+  const pts=findAll(v);
+  if(!pts.length){
+    $("pickcard").classList.add("hide");$("fixcard").classList.add("hide");FIX=null;
+    $("perr").textContent="No location found in that yet — paste coordinates, a grid, or a maps link.";
+    return}
+  if(pts.length===1){$("pickcard").classList.add("hide");showFix(pts[0]);return}
+  // more than one grid in the message: show them all rather than guessing
+  CANDIDATES=pts;
+  $("pickcard").classList.remove("hide");
+  $("pickcard").querySelector(".lab").textContent=
+    `${pts.length} coordinates in that message — pick one`;
+  $("pts").innerHTML=pts.slice(0,40).map((p,i)=>
+    `<li data-i="${i}"${i===0?' class="sel"':''}><b>${p.label||"Coordinate "+(i+1)}</b>`+
+    `${toMGRS(p.lat,p.lon)} · ${p.src}</li>`).join("");
+  for(const li of $("pts").children)li.onclick=()=>{
+    for(const o of $("pts").children)o.classList.remove("sel");
+    li.classList.add("sel");showFix(CANDIDATES[+li.dataset.i])};
+  showFix(pts[0])
+},250)});
+$("pastebtn").onclick=async()=>{
+  try{const t=await navigator.clipboard.readText();$("inp").value=t;
+    $("inp").dispatchEvent(new Event("input"))}
+  catch(e){$("perr").textContent="Clipboard blocked — paste into the box instead."}};
+$("filebtn").onclick=()=>$("file").click();
+$("file").onchange=async e=>{
+  const f=e.target.files[0];e.target.value="";if(!f)return;
+  $("perr").textContent="";
+  if(/^image\//.test(f.type)||/\.(jpe?g|png|webp|heic)$/i.test(f.name)){readPhoto(f);return}
+  const pts=await parseFile(f);
+  if(!pts.length){$("perr").textContent="No points found in that file.";return}
+  if(pts.length===1){$("inp").value=`${pts[0].lat}, ${pts[0].lon}`;showFix(pts[0]);
+    $("pickcard").classList.add("hide");return}
+  CANDIDATES=pts;$("pickcard").classList.remove("hide");
+  $("pickcard").querySelector(".lab").textContent="Several points in that file — pick one";
+  $("pts").innerHTML=pts.slice(0,40).map((p,i)=>
+    `<li data-i="${i}"><b>${p.label||"Point "+(i+1)}</b>${toMGRS(p.lat,p.lon)} · ${p.src}</li>`).join("");
+  for(const li of $("pts").children)li.onclick=()=>{
+    for(const o of $("pts").children)o.classList.remove("sel");
+    li.classList.add("sel");showFix(CANDIDATES[+li.dataset.i]);
+    $("fixcard").scrollIntoView({behavior:"smooth",block:"start"})}};
+
+
+/* ─────────────── waypoint exports: GPX, KML, TAK data package ───────────────
+   Standalone — no libraries. The TAK output is a plain ATAK/WinTAK Mission
+   Package (MANIFEST/manifest.xml plus one <folder>/<folder>.cot, waypoint CoT
+   type b-m-p-w), so it imports on its own and alongside anything else. */
+const WAYPOINT_COT="b-m-p-w";
+const COT_ARGB=(0xFF000000|0xFF2D95)|0;     // the magenta the imagery uses
+const esc=s=>String(s).replace(/[<>&'"]/g,c=>
+  ({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&apos;",'"':"&quot;"}[c]));
+const uuid4=()=>(crypto&&crypto.randomUUID)?crypto.randomUUID()
+  :"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,c=>{
+    const r=Math.random()*16|0;return (c==="x"?r:(r&0x3|0x8)).toString(16)});
+function cotStamp(){
+  const now=new Date(),stale=new Date(now.getTime()+365*24*3600*1000);
+  const f=d=>d.toISOString().replace(/\.\d+Z$/,".000Z");
+  return{t:f(now),s:f(stale)}}
+/* Date-time group, Zulu: 311430ZAUG26 for filenames, "311430Z AUG 26" to read.
+   Every output carries it so two briefs for the same point cannot be confused. */
+const MONS=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+function dtg(compact=true,when){
+  const d=when||new Date(),p2=n=>String(n).padStart(2,"0");
+  const core=p2(d.getUTCDate())+p2(d.getUTCHours())+p2(d.getUTCMinutes())+"Z";
+  const mon=MONS[d.getUTCMonth()],yr=String(d.getUTCFullYear()).slice(-2);
+  return compact?`${core}${mon}${yr}`:`${core} ${mon} ${yr}`}
+let DTG="";
+
+const wpSlug=s=>String(s).replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,40)||"LZ";
+
+function wpDescribe(fix,cap,ter,adv){
+  const b=[`DTG ${dtg(false)}`,`MGRS ${toMGRS(fix.lat,fix.lon)}`,`DDM  ${ddm(fix.lat,fix.lon)}`,
+           `DD   ${fix.lat.toFixed(6)}, ${fix.lon.toFixed(6)}`];
+  if(ter){b.push(`Elevation ${ter.m.toFixed(0)} m / ${ter.ft.toFixed(0)} ft AMSL`);
+    b.push(`Slope up to ${ter.slopeDeg.toFixed(1)} deg within ${ter.radius} m`)}
+  if(cap&&cap.dateStr)b.push(`Imagery ${cap.dateStr}, ${cap.res||"?"} m/px ${cap.sensor||""}`.trim());
+  if(adv)b.push(adv);
+  if(fix.src)b.push(`Parsed from: ${fix.src}`);
+  return b.join("\n")}
+
+function wpGPX(fix,name,desc,ter){
+  // GPX 1.1. <wpt> children must follow the schema sequence — ele, name, cmt,
+  // desc, sym, type — or a strict importer rejects the file, and Air Navigation
+  // Pro is the one that has to read this. Validated against the official XSD.
+  const ele=ter?`\n    <ele>${ter.m.toFixed(1)}</ele>`:"";
+  const cmt=toMGRS(fix.lat,fix.lon)||ddm(fix.lat,fix.lon);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="LZ Brief"
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${esc(name)}</name>
+    <time>${cotStamp().t}</time>
+  </metadata>
+  <wpt lat="${fix.lat.toFixed(7)}" lon="${fix.lon.toFixed(7)}">${ele}
+    <name>${esc(name)}</name>
+    <cmt>${esc(cmt)}</cmt>
+    <desc>${esc(desc)}</desc>
+    <sym>Flag, Blue</sym>
+    <type>LZ</type>
+  </wpt>
+</gpx>
+`}
+
+/* Air Navigation Pro direct-to. Only the identifier and name are encoded; the
+   separating commas stay literal so it works whether or not the app decodes. */
+function airnavURL(fix,name,ter){
+  const ident=String(name).toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,10)||"LZ";
+  const elev=ter?ter.m.toFixed(1):"0.0";
+  const loc=`${fix.lat.toFixed(6)}_${fix.lon.toFixed(6)},${elev},`+
+            `${encodeURIComponent(ident)},${encodeURIComponent(name)}`;
+  return `airnavpro://direct-to?coordinates=wgs84-decimal&location=${loc}`}
+
+function wpKML(fix,name,desc,ter){
+  const alt=ter?ter.m.toFixed(1):"0";
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>${esc(name)}</name>
+    <Style id="lz">
+      <IconStyle><color>ff952dff</color><scale>1.2</scale></IconStyle>
+    </Style>
+    <Placemark>
+      <name>${esc(name)}</name>
+      <description>${esc(desc)}</description>
+      <styleUrl>#lz</styleUrl>
+      <Point>
+        <altitudeMode>clampToGround</altitudeMode>
+        <coordinates>${fix.lon.toFixed(7)},${fix.lat.toFixed(7)},${alt}</coordinates>
+      </Point>
+    </Placemark>
+  </Document>
+</kml>
+`}
+
+function wpCOT(fix,name,desc,uid,ter){
+  const {t,s}=cotStamp(),hae=ter?ter.m.toFixed(1):"9999999.0";
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<event version="2.0" uid="${esc(uid)}" type="${WAYPOINT_COT}" how="h-g-i-g-o"
+       time="${t}" start="${t}" stale="${s}">
+  <point lat="${fix.lat.toFixed(7)}" lon="${fix.lon.toFixed(7)}" hae="${hae}" ce="9999999.0" le="9999999.0"/>
+  <detail>
+    <contact callsign="${esc(name)}"/>
+    <status readiness="true"/>
+    <archive/>
+    <color argb="${COT_ARGB}"/>
+    <remarks>${esc(desc)}</remarks>
+    <link uid="${esc(uid)}" production_time="${t}" type="${WAYPOINT_COT}"
+          parent_callsign="LZ BRIEF" relation="p-p"/>
+  </detail>
+</event>
+`}
+
+/* a minimal stored (uncompressed) ZIP writer — the files are a couple of KB, so
+   there is nothing to gain from deflate and nothing to depend on */
+const CRC_T=(()=>{const t=new Uint32Array(256);
+  for(let n=0;n<256;n++){let c=n;
+    for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(u8){let c=0xFFFFFFFF;
+  for(let i=0;i<u8.length;i++)c=CRC_T[(c^u8[i])&0xFF]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0}
+
+function zipStore(files){          // [{name, text}]
+  const enc=new TextEncoder(),parts=[],central=[];let off=0;
+  const d=new Date(),
+    dosT=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()/2))&0xFFFF,
+    dosD=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
+  for(const f of files){
+    const name=enc.encode(f.name),data=enc.encode(f.text),crc=crc32(data);
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);
+    lh.setUint16(8,0,true);lh.setUint16(10,dosT,true);lh.setUint16(12,dosD,true);
+    lh.setUint32(14,crc,true);lh.setUint32(18,data.length,true);
+    lh.setUint32(22,data.length,true);lh.setUint16(26,name.length,true);
+    lh.setUint16(28,0,true);
+    parts.push(new Uint8Array(lh.buffer),name,data);
+    const cd=new DataView(new ArrayBuffer(46));
+    cd.setUint32(0,0x02014b50,true);cd.setUint16(4,20,true);cd.setUint16(6,20,true);
+    cd.setUint16(8,0x0800,true);cd.setUint16(10,0,true);
+    cd.setUint16(12,dosT,true);cd.setUint16(14,dosD,true);
+    cd.setUint32(16,crc,true);cd.setUint32(20,data.length,true);
+    cd.setUint32(24,data.length,true);cd.setUint16(28,name.length,true);
+    cd.setUint16(30,0,true);cd.setUint16(32,0,true);cd.setUint16(34,0,true);
+    cd.setUint16(36,0,true);cd.setUint32(38,0,true);cd.setUint32(42,off,true);
+    central.push(new Uint8Array(cd.buffer),name);
+    off+=30+name.length+data.length}
+  const cdStart=off;
+  let cdLen=0;for(const c of central)cdLen+=c.length;
+  const eo=new DataView(new ArrayBuffer(22));
+  eo.setUint32(0,0x06054b50,true);eo.setUint16(4,0,true);eo.setUint16(6,0,true);
+  eo.setUint16(8,files.length,true);eo.setUint16(10,files.length,true);
+  eo.setUint32(12,cdLen,true);eo.setUint32(16,cdStart,true);eo.setUint16(20,0,true);
+  return new Blob([...parts,...central,new Uint8Array(eo.buffer)],
+                  {type:"application/zip"})}
+
+function wpTAK(fix,name,desc,ter){
+  const markerUid=uuid4(),pkgUid=uuid4(),folder=wpSlug(name),entry=`${folder}/${folder}.cot`;
+  const manifest=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<MissionPackageManifest version="2">
+  <Configuration>
+    <Parameter name="uid" value="${esc(pkgUid)}"/>
+    <Parameter name="name" value="${esc(name)}"/>
+    <Parameter name="onReceiveImport" value="true"/>
+    <Parameter name="onReceiveDelete" value="false"/>
+  </Configuration>
+  <Contents>
+    <Content ignore="false" zipEntry="${esc(entry)}"><Parameter name="uid" value="${esc(markerUid)}"/></Content>
+  </Contents>
+</MissionPackageManifest>
+`;
+  return zipStore([{name:"MANIFEST/manifest.xml",text:manifest},
+                   {name:entry,text:wpCOT(fix,name,desc,markerUid,ter)}])}
+
+function saveBlob(blob,filename){
+  const u=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=u;a.download=filename;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(u);a.remove()},1500)}
+
+let WP_CAP=null, WP_TER=null, WP_ADV=null;
+function exportWaypoint(kind){
+  const f=FIX;if(!f)return;
+  const stamp=dtg();
+  const name=($("nm").value.trim()||"LANDING POINT")+" "+stamp;
+  const desc=wpDescribe(f,WP_CAP,WP_TER,WP_ADV&&WP_ADV.text);
+  const slug=wpSlug($("nm").value.trim()||"LANDING POINT")+"_"+stamp;
+  if(kind==="gpx")saveBlob(new Blob([wpGPX(f,name,desc,WP_TER)],
+    {type:"application/gpx+xml"}),`${slug}.gpx`);
+  else if(kind==="kml")saveBlob(new Blob([wpKML(f,name,desc,WP_TER)],
+    {type:"application/vnd.google-earth.kml+xml"}),`${slug}.kml`);
+  else saveBlob(wpTAK(f,name,desc,WP_TER),`${slug}_TAK.zip`)}
+
+/* ─────────────── interactive picker ───────────────
+   A small slippy map on the same tile engine. Drag to pan, pinch or +/- to zoom,
+   tap to drop the point. The corner readout follows the mouse on a laptop and the
+   centre crosshair on a touch screen, because a finger has no hover position. */
+const MV={lat:9.0765,lon:7.3986,z:15,maxz:19,w:0,h:0,dpr:1,drag:null,ptrs:new Map(),
+          moved:0,hover:null,raf:0,inited:false,labels:true,sel:null};
+
+function mvSize(){
+  const cv=$("map"),r=cv.getBoundingClientRect();
+  MV.dpr=Math.min(2.5,window.devicePixelRatio||1);
+  MV.w=Math.max(1,Math.round(r.width));MV.h=Math.max(1,Math.round(r.height));
+  cv.width=MV.w*MV.dpr;cv.height=MV.h*MV.dpr}
+
+function mvPtToLatLon(sx,sy){
+  const zi=Math.max(2,Math.min(MV.maxz,Math.round(MV.z))),sc=2**(MV.z-zi);
+  const[cmx,cmy]=merc(MV.lon,MV.lat),[cpx,cpy]=toPx(cmx,cmy,zi);
+  const wx=cpx+(sx-MV.w/2)/sc, wy=cpy+(sy-MV.h/2)/sc;
+  const world=TILE*2**zi;
+  const mx=wx/world*2*ORIGIN-ORIGIN, my=ORIGIN-wy/world*2*ORIGIN;
+  return{lon:mx/R_E/DEG,
+         lat:(2*Math.atan(Math.exp(my/R_E))-Math.PI/2)/DEG}}
+
+const mvReady=new Map(),mvPending=new Set();
+function mvDraw(){
+  MV.raf=0;
+  const cv=$("map");if(!MV.w)mvSize();
+  const c=cv.getContext("2d");c.setTransform(MV.dpr,0,0,MV.dpr,0,0);
+  c.fillStyle="#0d0f14";c.fillRect(0,0,MV.w,MV.h);
+  const zi=Math.max(2,Math.min(MV.maxz,Math.round(MV.z))),sc=2**(MV.z-zi);
+  const[cmx,cmy]=merc(MV.lon,MV.lat),[cpx,cpy]=toPx(cmx,cmy,zi);
+  const halfW=MV.w/2/sc,halfH=MV.h/2/sc;
+  const l=cpx-halfW,t=cpy-halfH,r=cpx+halfW,b=cpy+halfH,n=2**zi;
+  const tx0=Math.floor(l/TILE),ty0=Math.floor(t/TILE),
+        tx1=Math.floor(r/TILE),ty1=Math.floor(b/TILE);
+  c.imageSmoothingQuality="high";
+  // satellite hybrid: imagery first, then roads, then place names on top
+  const layers=[ESRI].concat(MV.labels?[ESRI_ROADS,ESRI_LAB]:[]);
+  for(const layer of layers){
+    for(let ty=ty0;ty<=ty1;ty++){
+      if(ty<0||ty>=n)continue;
+      for(let tx=tx0;tx<=tx1;tx++){
+        const url=layer(zi,((tx%n)+n)%n,ty);
+        const dx=(tx*TILE-l)*sc,dy=(ty*TILE-t)*sc,dw=TILE*sc+1;
+        const ready=mvReady.get(url);
+        if(ready){c.drawImage(ready,dx,dy,dw,dw);continue}
+        if(!mvPending.has(url)){          // resolve once, then repaint once
+          mvPending.add(url);
+          loadImg(url).then(im=>{mvPending.delete(url);
+            if(im){mvReady.set(url,im);mvQueueDraw()}})}}}}
+  // crosshair, in the same magenta the briefs use for the point
+  // scale bar, so distances on the picker are judgeable too
+  const mpp=groundRes(MV.lat,MV.z),want=roundScale(MV.w*mpp/4.5),bp=want/mpp;
+  if(bp>20&&bp<MV.w-40){
+    c.fillStyle="rgba(0,0,0,.7)";c.fillRect(8,MV.h-64,bp+20,30);
+    c.fillStyle="#fff";c.fillRect(18,MV.h-44,bp,7);
+    c.fillStyle="#000";c.fillRect(18,MV.h-44,bp/2,7);
+    c.fillStyle="#fff";c.font="700 13px -apple-system,system-ui,sans-serif";
+    c.textAlign="left";c.textBaseline="bottom";
+    c.fillText(want<1000?want+" m":(want/1000)+" km",18,MV.h-48)}
+  $("zl").textContent=`z${MV.z.toFixed(1)} · `+
+    (mpp<10?mpp.toFixed(2)+" m/px":mpp<1000?mpp.toFixed(0)+" m/px":(mpp/1000).toFixed(1)+" km/px")}
+
+function mvQueueDraw(){if(!MV.raf)MV.raf=requestAnimationFrame(mvDraw)}
+
+function mvReadout(){
+  const pt=MV.hover||MV.sel||{lat:MV.lat,lon:MV.lon};
+  const which=MV.hover?"CURSOR":MV.sel?"SELECTED":"CENTRE OF MAP";
+  $("rdout").innerHTML=`<span class="k">${which}</span>`+
+    `<span class="mg">${toMGRS(pt.lat,pt.lon)}</span><br>`+
+    `${pt.lat.toFixed(6)}, ${pt.lon.toFixed(6)}<br>`+
+    `<span style="color:var(--dim)">${ddm(pt.lat,pt.lon)}</span>`}
+
+function mvUseLabel(){
+  const b=$("usept");
+  if(MV.sel){b.disabled=false;b.textContent="Use "+toMGRS(MV.sel.lat,MV.sel.lon)}
+  else{b.disabled=true;b.textContent="Click the map to choose a point"}}
+
+function mvSetZoom(z,ax,ay){
+  const before=mvPtToLatLon(ax==null?MV.w/2:ax,ay==null?MV.h/2:ay);
+  MV.z=Math.max(3,Math.min(MV.maxz,z));
+  if(ax!=null){const after=mvPtToLatLon(ax,ay);
+    MV.lat+=before.lat-after.lat;MV.lon+=before.lon-after.lon}
+  mvQueueDraw();mvReadout()}
+
+function mvInit(){
+  if(MV.inited)return;MV.inited=true;
+  const cv=$("map");
+  mvSize();
+  new ResizeObserver(()=>{mvSize();mvQueueDraw()}).observe(cv);
+  const mid=()=>{const a=[...MV.ptrs.values()];
+    return{x:(a[0].x+a[1].x)/2,y:(a[0].y+a[1].y)/2,
+           d:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y)}};
+  cv.addEventListener("pointerdown",e=>{
+    cv.setPointerCapture(e.pointerId);
+    MV.ptrs.set(e.pointerId,{x:e.offsetX,y:e.offsetY});
+    MV.moved=0;
+    if(MV.ptrs.size===2)MV.pinch={...mid(),z:MV.z}});
+  cv.addEventListener("pointermove",e=>{
+    const prev=MV.ptrs.get(e.pointerId);
+    if(e.pointerType==="mouse"&&!prev){
+      MV.hover=mvPtToLatLon(e.offsetX,e.offsetY);mvReadout();return}
+    if(!prev)return;
+    const dx=e.offsetX-prev.x,dy=e.offsetY-prev.y;
+    MV.ptrs.set(e.pointerId,{x:e.offsetX,y:e.offsetY});
+    MV.moved+=Math.abs(dx)+Math.abs(dy);
+    if(MV.ptrs.size===2&&MV.pinch){
+      const m=mid();
+      mvSetZoom(MV.pinch.z+Math.log2(Math.max(.05,m.d/Math.max(1,MV.pinch.d))),m.x,m.y);
+      return}
+    const a=mvPtToLatLon(MV.w/2,MV.h/2),b=mvPtToLatLon(MV.w/2-dx,MV.h/2-dy);
+    MV.lat+=b.lat-a.lat;MV.lon+=b.lon-a.lon;
+    MV.lat=Math.max(-85,Math.min(85,MV.lat));
+    MV.hover=e.pointerType==="mouse"?mvPtToLatLon(e.offsetX,e.offsetY):null;
+    mvQueueDraw();mvReadout()});
+  const up=e=>{
+    const was=MV.ptrs.size;
+    MV.ptrs.delete(e.pointerId);
+    if(MV.ptrs.size<2)MV.pinch=null;
+    if(was===1&&MV.moved<6){            // click or tap picks that exact spot
+      MV.sel=mvPtToLatLon(e.offsetX,e.offsetY);
+      if(e.pointerType!=="mouse")MV.hover=null;
+      mvReadout();mvUseLabel()}};
+  cv.addEventListener("pointerup",up);cv.addEventListener("pointercancel",up);
+  cv.addEventListener("pointerleave",()=>{MV.hover=null;mvReadout()});
+  cv.addEventListener("wheel",e=>{e.preventDefault();
+    mvSetZoom(MV.z-Math.sign(e.deltaY)*0.5,e.offsetX,e.offsetY)},{passive:false});
+  cv.addEventListener("dblclick",e=>{e.preventDefault();mvSetZoom(MV.z+1,e.offsetX,e.offsetY)});
+  mvUseLabel();
+  $("ztog").onclick=()=>{MV.labels=!MV.labels;
+    $("ztog").style.opacity=MV.labels?"1":".45";mvQueueDraw()};
+  $("zin").onclick=()=>mvSetZoom(MV.z+1);
+  $("zout").onclick=()=>mvSetZoom(MV.z-1);
+  $("usept").onclick=()=>{
+    if(!MV.sel)return;
+    const f={lat:MV.sel.lat,lon:MV.sel.lon,src:"picked on map"};
+    $("inp").value=`${f.lat.toFixed(6)}, ${f.lon.toFixed(6)}`;
+    showFix(f);$("mapcard").classList.add("hide");
+    $("fixcard").scrollIntoView({behavior:"smooth",block:"start"})};
+  $("mapclose").onclick=()=>$("mapcard").classList.add("hide")}
+
+$("mapbtn").onclick=async()=>{
+  const card=$("mapcard");
+  if(!card.classList.contains("hide")){card.classList.add("hide");return}
+  card.classList.remove("hide");
+  mvInit();
+  if(FIX){MV.lat=FIX.lat;MV.lon=FIX.lon;MV.z=16;MV.sel=null}
+  MV.maxz=19;
+  mvSize();mvQueueDraw();mvReadout();
+  card.scrollIntoView({behavior:"smooth",block:"start"});
+  try{MV.maxz=await deepestZoom(MV.lat,MV.lon,ESRI);mvQueueDraw()}catch(e){}};
+
+$("exgpx").onclick=()=>exportWaypoint("gpx");
+$("exkml").onclick=()=>exportWaypoint("kml");
+$("extak").onclick=()=>exportWaypoint("tak");
+$("exanp").onclick=()=>{
+  if(!FIX)return;
+  const name=$("nm").value.trim()||"LANDING POINT";
+  location.href=airnavURL(FIX,name,WP_TER)};
+$("build").onclick=build;
+$("cyear").textContent=new Date().getFullYear();
+try{const v=localStorage.getItem("lz.s2");if(v!=null)$("s2on").checked=v==="1"}catch(e){}
+$("s2on").onchange=()=>{try{localStorage.setItem("lz.s2",$("s2on").checked?"1":"0")}catch(e){}};
+/* deep link: ?q=... lets the whole thing be driven from a shortcut */
+(()=>{const q=new URLSearchParams(location.search).get("q");
+  if(q){$("inp").value=q;$("inp").dispatchEvent(new Event("input"))}})();
+</script>
+<!-- Tesseract.js 5.1.1 (Apache-2.0), base64. Not parsed as script: read,
+     decoded and run from a Blob URL only when a photo is read. -->
+</body>
+</html>
