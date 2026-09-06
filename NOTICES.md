@@ -2,9 +2,20 @@
 
 LZ Brief © 2026 RBM Global. All rights reserved.
 
-The tool contains no third-party code. Everything — coordinate parsing, the MGRS/UTM
-implementation, the tile engine, the renderer and the map picker — is original and
-inlined in `index.html`. There are no bundled libraries and no CDN dependencies.
+`index.html` contains no third-party code. Everything in it — coordinate parsing, the
+MGRS/UTM implementation, the tile engine, the Sentinel-2 GeoTIFF reader, the renderer,
+the ZIP writer and the map picker — is original. There are no CDN dependencies.
+
+The one bundled library is the OCR engine behind **Read a screen photo**, self-hosted in
+`vendor/` and loaded only when that button is used:
+
+| File | What | Licence |
+|---|---|---|
+| `vendor/tesseract.min.js`, `vendor/worker.min.js` | Tesseract.js 5.1.1 (naptha/tesseract.js) | Apache-2.0 |
+| `vendor/tesseract-core-simd-lstm.wasm.js` | tesseract.js-core 5.1.1 — Tesseract OCR compiled to WebAssembly | Apache-2.0 |
+| `vendor/eng.traineddata.gz` | Tesseract English model, tessdata 4.0.0 (best, integer) | Apache-2.0 |
+
+OCR runs entirely on the device; the photo is never uploaded anywhere.
 
 ## Imagery and data services
 

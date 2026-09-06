@@ -15,6 +15,7 @@ server logic. Nothing anyone enters leaves their own device.
 | `sw.js` | Offline worker, so the page opens with no signal |
 | `manifest.webmanifest` | Lets the page install to a phone or tablet home screen |
 | `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | Home-screen icons |
+| `vendor/` | The on-device OCR engine behind *Read a screen photo* (Tesseract.js, ~7 MB) — see NOTICES.md |
 | `cli/` | Python version — batch runs, GPX/TAK files, PDF output |
 | `samples/` | Example output, so you can see what a crew receives |
 | `NOTICES.md` | Imagery sources, attribution and the licensing position |
@@ -88,6 +89,39 @@ ground resolution are shown, so you can see the detail you are actually working 
 It opens centred on whatever is already parsed, so it also serves to nudge a grid that
 landed slightly off — read the coordinates out of the message, drag the crosshair onto
 the actual clearing, build from there.
+
+## Reading a drone screen photo
+
+**Read a screen photo** takes a photo or screenshot of a UAV ground-station display —
+the client's JOUAV GCS is the case it was built on — and reads the coordinates straight
+off the on-screen data strip. Choose a photo (or take one), and a few seconds later the
+target is parsed, gridded and previewed exactly as if it had been typed in. On a phone
+this also accepts an image shared into the tool.
+
+    ACFT: 11°55'31.051"N   7° 4'22.588"E   HMSL: 1650m
+    TGT:  11°56'17.850"N   7° 3'54.491"E   HMSL: 514m   →  TGT is what gets selected
+
+How it reads: the OSD is light text on a dark strip, so the dark strips are found by row
+brightness, cut out and read on their own at four scales; every reading is pooled and a
+line is labelled **TGT** or **ACFT** by the words on it, TGT first. Both appear in the
+picker when both are read; a screen without a dark banner falls back to reading the
+whole frame. It is all on-device (Tesseract OCR compiled to WebAssembly, self-hosted
+alongside the page, ~7 MB fetched once and kept offline) — the photo is never uploaded.
+
+**Check the digits.** OCR reads a photo of a screen; it can misread. Four things make it
+safe enough to use in a hurry. The specific ways OCR mangles coordinate text — every one
+seen on a real photo — are repaired before parsing: a second `°` where the minute mark is
+(`7° 4°22.588"`), a dropped or space-read decimal point in the seconds (`54491"`,
+`22 588"`), `°` or `'` where the closing `"` should be. Anything still mangled cannot
+parse at all (seconds may not run into further digits), so it drops out rather than
+becoming a wrong fix. **The passes vote**: each strip is read at four scales, readings
+within 100 m of each other are one candidate, the one most passes agree on wins, and
+the badge says so — *3 of 4 passes agree*. And the text it read goes into the box above
+the result with an orange **verify against the screen** badge, with the satellite preview
+of the parsed point as the last check — if the screen shows a compound and the preview
+shows open bush, don't fly it. The aircraft's own position (**ACFT**) is shown in the
+picker when read, but is never selected for you; if only the ACFT line is legible the
+tool says so and asks for a better photo rather than offering the wrong point.
 
 ## Location formats it reads
 
@@ -278,6 +312,24 @@ is unreachable. Bump `CACHE` in `sw.js` if a stale shell ever needs forcing out.
   by resolution only: the panel is always full 10 m, whatever the tile count
   (worst case ≈8 MB instead of ≈3 MB). Sharpness is the point; it is never traded
   for download size again.
+
+**6 Sep 2026** — screen-photo reading hardened.
+- OCR repairs for the misreads seen on the client's photo (second `°` as minute mark,
+  dropped/space decimal point in the seconds, `°`/`'` for the closing quote) and
+  **voting across the four passes** — the fix most passes agree on wins and the badge
+  reports the count. ACFT is never auto-selected; an ACFT-only read is refused with a
+  retake prompt. Verified on the original 4032 px photo (3 of 4 agree, 6.6 s) and on a
+  WhatsApp-compressed 1600 px copy (4 of 4, 4.6 s), in the browser and in the CLI.
+
+**5 Sep 2026 (evening)** — read a drone screen photo.
+- **Read a screen photo**: OCR the coordinates off a photo/screenshot of a UAV ground
+  station, TGT preferred over ACFT. On-device (Tesseract.js, self-hosted in `vendor/`,
+  ~7 MB, cached offline after first fetch). Verified on the client's JOUAV GCS photo:
+  `TGT 11°56'17.850"N 7°3'54.491"E` read exactly, in about 6 s. CLI: pass the image
+  path (`lzpack.py photo.jpg`); needs `tesseract` + `pytesseract` installed.
+- Parser hardening from the same work: a sexagesimal seconds or decimal-minutes group
+  may not be followed by another digit, so a mangled reading fails to parse rather than
+  parsing wrongly.
 
 **5 Sep 2026 (later)** — reticle, and an imagery-honesty fix.
 - **The landing point is now marked with a thin open-centre red reticle** —

@@ -133,11 +133,15 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 0 8px;line
   <div class="row" style="margin-top:9px">
     <button id="pastebtn">Paste from clipboard</button>
     <button id="filebtn">Open GPX / TAK file</button>
+    <button id="ocrbtn">Read a screen photo</button>
     <button id="mapbtn">Pick on map</button>
   </div>
-  <input type="file" id="file" class="hide" accept=".gpx,.kml,.kmz,.cot,.xml,.zip,.txt">
+  <input type="file" id="file" class="hide" accept=".gpx,.kml,.kmz,.cot,.xml,.zip,.txt,image/*">
+  <input type="file" id="ocrfile" class="hide" accept="image/*">
   <div class="hint">Understands decimal degrees, DMS, degrees-decimal-minutes, MGRS,
-    Google/Apple Maps links, <code>geo:</code> links, GPX, KML and TAK data packages.</div>
+    Google/Apple Maps links, <code>geo:</code> links, GPX, KML and TAK data packages.
+    <b>Read a screen photo</b> reads the coordinates off a photo or screenshot of a drone
+    ground station (TGT preferred over ACFT) — on this device, nothing is uploaded.</div>
   <div class="err" id="perr"></div>
 </div>
 
@@ -274,8 +278,8 @@ const RX={
   urlat:new RegExp(`[@!]3?d?(${DEC})[,!]\\s?-?4?d?(${DEC})`),
   geo:new RegExp(`geo:(${DEC}),(${DEC})`),
   mgrs:/\b(\d{1,2}\s?[C-HJ-NP-X]\s?[A-HJ-NP-Z]{2}\s?\d{2,10}(?:\s?\d{2,5})?)\b/i,
-  dms:new RegExp(`(?<h1>${HN})?\\s*(?<d1>\\d{1,3})\\s*[°d:\\s]\\s*(?<m1>\\d{1,2})\\s*['′m:\\s]\\s*(?<s1>\\d{1,2}(?:[.,]\\d+)?)\\s*(?:["″]|'')?\\s*(?<h1b>${HN})?\\s*[,;/\\s]+\\s*(?<h2>${HE})?\\s*(?<d2>\\d{1,3})\\s*[°d:\\s]\\s*(?<m2>\\d{1,2})\\s*['′m:\\s]\\s*(?<s2>\\d{1,2}(?:[.,]\\d+)?)\\s*(?:["″]|'')?\\s*(?<h2b>${HE})?`),
-  ddm:new RegExp(`(?<h1>${HN})?\\s*(?<d1>\\d{1,3})\\s*[°d\\s]\\s*(?<m1>\\d{1,2}[.,]\\d+)\\s*['′]?\\s*(?<h1b>${HN})?\\s*[,;/\\s]+\\s*(?<h2>${HE})?\\s*(?<d2>\\d{1,3})\\s*[°d\\s]\\s*(?<m2>\\d{1,2}[.,]\\d+)\\s*['′]?\\s*(?<h2b>${HE})?`),
+  dms:new RegExp(`(?<h1>${HN})?\\s*(?<d1>\\d{1,3})\\s*[°d:\\s]\\s*(?<m1>\\d{1,2})\\s*['′m:\\s]\\s*(?<s1>\\d{1,2}(?:[.,]\\d+)?)(?!\\d)\\s*(?:["″]|'')?\\s*(?<h1b>${HN})?\\s*[,;/\\s]+\\s*(?<h2>${HE})?\\s*(?<d2>\\d{1,3})\\s*[°d:\\s]\\s*(?<m2>\\d{1,2})\\s*['′m:\\s]\\s*(?<s2>\\d{1,2}(?:[.,]\\d+)?)(?!\\d)\\s*(?:["″]|'')?\\s*(?<h2b>${HE})?`),
+  ddm:new RegExp(`(?<h1>${HN})?\\s*(?<d1>\\d{1,3})\\s*[°d\\s]\\s*(?<m1>\\d{1,2}[.,]\\d+)(?!\\d)\\s*['′]?\\s*(?<h1b>${HN})?\\s*[,;/\\s]+\\s*(?<h2>${HE})?\\s*(?<d2>\\d{1,3})\\s*[°d\\s]\\s*(?<m2>\\d{1,2}[.,]\\d+)(?!\\d)\\s*['′]?\\s*(?<h2b>${HE})?`),
   nmea:/\b(\d{2})(\d{2}[.,]\d+)\s*([NSns])\s*[,;/ ]*\s*(\d{3})(\d{2}[.,]\d+)\s*([EWew])\b/,
   ddh:new RegExp(`(${DEC})\\s*°?\\s*(${HN})\\s*[,;/ ]?\\s*(${DEC})\\s*°?\\s*(${HE})`),
   dd:new RegExp(`(?<![\\d.])(${DEC})\\s*[,;/ ]\\s*(${DEC})(?![\\d.])`),
@@ -1261,6 +1265,134 @@ function shareOneByOne(files,i,fail,sent=0){
     .then(()=>setTimeout(()=>shareOneByOne(files,i+1,fail,sent+1),400))
     .catch(()=>fail(`Sent ${sent} of ${n}. The browser stopped the rest — use <b>Send just this one</b> under each remaining image.`))}
 
+
+/* ─────────────── read a GCS / screen photo: on-device OCR ───────────────
+   Tesseract.js (Apache-2.0) self-hosted in vendor/ — engine, WASM core and the
+   English model live beside this page and are precached by the service worker,
+   so the photo never leaves the device and it works with no signal. The OSD on
+   a ground-station screen is light text on a dark strip: those strips are found
+   by row brightness, cut out and read on their own, which is what turns a
+   noisy photo-of-a-screen into a clean line of digits. TGT wins over ACFT. */
+let OCRW=null;
+async function ocrEngine(onStatus){
+  if(OCRW)return OCRW;
+  if(!window.Tesseract){onStatus&&onStatus("Loading the OCR engine…");
+    await new Promise((res,rej)=>{const s=document.createElement("script");
+      s.src="vendor/tesseract.min.js";s.onload=res;
+      s.onerror=()=>rej(new Error("OCR engine did not load"));document.head.appendChild(s)})}
+  const base=new URL("vendor/",location.href).href;
+  onStatus&&onStatus("Starting the OCR engine…");
+  OCRW=await Tesseract.createWorker("eng",1,{workerPath:base+"worker.min.js",
+    corePath:base+"tesseract-core-simd-lstm.wasm.js",langPath:base.replace(/\/$/,""),
+    gzip:true,workerBlobURL:false,cacheMethod:"none"});
+  await OCRW.setParameters({preserve_interword_spaces:"1"});
+  return OCRW}
+
+function loadImage(file){return new Promise((res,rej)=>{const u=URL.createObjectURL(file),im=new Image();
+  im.onload=()=>{URL.revokeObjectURL(u);res(im)};im.onerror=()=>rej(new Error("not an image"));im.src=u})}
+
+/* dark horizontal strips carrying light text — the OSD bands — plus the whole
+   frame at a sensible size as a fallback for screens without a dark banner */
+function ocrCrops(img){
+  const W=img.naturalWidth,H=img.naturalHeight,out=[];
+  const sc=Math.min(1,1600/Math.max(W,H));
+  const th=document.createElement("canvas");th.width=Math.round(W*sc);th.height=Math.round(H*sc);
+  const tc=th.getContext("2d",{willReadFrequently:true});tc.drawImage(img,0,0,th.width,th.height);
+  const d=tc.getImageData(0,0,th.width,th.height).data,rows=new Float32Array(th.height);
+  for(let y=0;y<th.height;y++){let s=0;for(let x=0;x<th.width;x+=2){const i=(y*th.width+x)*4;s+=.299*d[i]+.587*d[i+1]+.114*d[i+2]}
+    rows[y]=s/Math.ceil(th.width/2)}
+  const bands=[];for(let y=0;y<th.height;){if(rows[y]<95){const y0=y;while(y<th.height&&rows[y]<115)y++;
+      if(y-y0>=Math.max(6,th.height*.01)){
+        // a strip with no light pixels is a bezel or shadow, not text on a banner
+        let bright=0,n=0;for(let yy=y0;yy<y;yy+=2)for(let x=0;x<th.width;x+=2){const i=(yy*th.width+x)*4;n++;
+          if(.299*d[i]+.587*d[i+1]+.114*d[i+2]>170)bright++}
+        if(bright/n>.004)bands.push([y0/sc,y/sc])}}else y++}
+  // plain luminance, no contrast stretch: a stretch made the small dim decimal
+  // point in the seconds vanish at every scale on a real screen photo
+  const grey=(cv)=>{const c=cv.getContext("2d",{willReadFrequently:true}),id=c.getImageData(0,0,cv.width,cv.height),p=id.data;
+    for(let i=0;i<p.length;i+=4){const l=.299*p[i]+.587*p[i+1]+.114*p[i+2];p[i]=p[i+1]=p[i+2]=l;p[i+3]=255}
+    c.putImageData(id,0,0);return cv};
+  const invert=cv=>{const c=cv.getContext("2d");c.globalCompositeOperation="difference";c.fillStyle="#fff";
+    c.fillRect(0,0,cv.width,cv.height);c.globalCompositeOperation="source-over";return cv};
+  // each band is read at several scales and every reading is pooled. The
+  // recogniser is fussy about glyph height — on this photo the decimal point
+  // in the seconds vanished at native size and came back at 0.75x and 1.5x —
+  // so no single scale is trusted to decide the fix.
+  for(const[y0,y1]of bands.slice(0,5)){const pad=(y1-y0)*.25,a=Math.max(0,y0-pad),b=Math.min(H,y1+pad);
+    if(b-a<12||b-a>H*.6)continue;                       // a bezel or a dark whole frame is not a banner
+    for(const k of[0.5,0.75,1,1.5]){const s2=Math.min(k,6000/W);
+      const cv=document.createElement("canvas");cv.width=Math.round(W*s2);cv.height=Math.round((b-a)*s2);
+      const c=cv.getContext("2d");c.imageSmoothingQuality="high";c.drawImage(img,0,a,W,b-a,0,0,cv.width,cv.height);
+      out.push(grey(cv))}}
+  const full=document.createElement("canvas"),fs=Math.min(1,2200/Math.max(W,H));
+  full.width=Math.round(W*fs);full.height=Math.round(H*fs);
+  full.getContext("2d").drawImage(img,0,0,full.width,full.height);
+  return{bands:out,full:grey(full)}}
+
+/* what OCR does to a coordinate line, undone. Every rule here was seen on a real
+   screen photo: a second ° where the minute mark is (7° 4°22.588"E), the decimal
+   point in the seconds dropped (54491"E) or read as a space (22 588"E), ° or '
+   where the closing " should be (17.850°N), letter O for zero. A dropped point
+   is the dangerous one — "54491" still parses as 54" and lands 15 m out — which
+   is why it is repaired rather than left to the parser. */
+const DMSP="(\\d{1,3}\\s*[°º]\\s*\\d{1,2}\\s*['′]\\s*)";
+function ocrFix(t){
+  t=normalise(t);
+  return t.replace(/([°º]\s*\d{1,2})[°º](?=\d{2})/g,"$1'")
+          .replace(new RegExp(DMSP+'(\\d{2})[ ]?(\\d{3})(?=\\s*["″°º]|\\s*[NSEW](?![A-Za-z]))',"g"),"$1$2.$3")
+          .replace(/([°º]\s*)(\d{1,2})(\d{2})[.,](\d{3})(?=\s*["″°º]|\s*[NSEW](?![A-Za-z]))/g,"$1$2'$3.$4")   // minute mark lost: 422,588"
+          .replace(new RegExp(DMSP+'(\\d{1,2}(?:[.,]\\d+)?)\\s*[°º*\'′"″´`]{1,2}\\s*(?=[NSEW](?![A-Za-z]))',"g"),'$1$2"')
+          .replace(/(?<=\d)[oO](?=\d)/g,"0").replace(/(?<=\d[°'"])[oO](?=\d)/g,"0")
+          .replace(/(?<=[NSEW]|\d)\s*[|]\s*/g," ")}
+
+async function readPhoto(file){
+  const st=m=>{$("perr").textContent=m};
+  const btn=$("ocrbtn"),was=btn.textContent;btn.disabled=true;
+  try{
+    const img=await loadImage(file);
+    const w=await ocrEngine(st);
+    const crops=ocrCrops(img),reads=[];let runs=0;
+    // every reading from every pass, labelled by the words on its line
+    const harvest=text=>{runs++;for(const line of ocrFix(text).split(/\n+/)){
+      const found=findAll(line);if(!found.length)continue;
+      const L=/\b(TGT|TARGET|TRGT|TAR|OBJ|OBJECTIVE|POI|MARK|LASER|CENTER|CENTRE)\b/i.test(line)?"TGT"
+             :/\b(ACFT|AIRCRAFT|A\/?C|UAV|UAS|OWNSHIP|HOME|GCS|PLANE|DRONE)\b/i.test(line)?"ACFT":"";
+      for(const f of found)reads.push({...f,tag:L,line:line.trim().replace(/^[^A-Za-z0-9]+/,"")})}};
+    for(let i=0;i<crops.bands.length;i++){st(`Reading the data strip… ${i+1}/${crops.bands.length}`);
+      harvest((await w.recognize(crops.bands[i])).data.text)}
+    if(!reads.some(p=>p.tag==="TGT")){st("Reading the whole frame…");harvest((await w.recognize(crops.full)).data.text)}
+    // The passes vote. Readings within ~100 m of each other are one cluster; the
+    // cluster with the most votes wins, TGT-labelled clusters ahead of unlabelled,
+    // and the aircraft's own position is offered but never chosen.
+    const near=(a,b)=>Math.abs(a.lat-b.lat)<.001&&Math.abs(a.lon-b.lon)<.001;
+    const clusters=[];
+    for(const r of reads){const c=clusters.find(c=>c.tag===r.tag&&near(c,r));
+      if(c){c.n++;if(!c.lines.includes(r.line))c.lines.push(r.line)}
+      else clusters.push({lat:r.lat,lon:r.lon,src:"screen photo (OCR)",tag:r.tag,n:1,lines:[r.line],line:r.line})}
+    const rank=c=>(c.tag==="TGT"?2e6:c.tag===""?1e6:0)+c.n;
+    clusters.sort((a,b)=>rank(b)-rank(a));
+    const pts=clusters.map(c=>({...c,label:c.tag||undefined,
+      note:c.tag==="ACFT"?"the AIRCRAFT's position, not the target":
+        `read from a photo by OCR, ${c.n} of ${runs} passes agree — verify the digits against the screen before you fly`}));
+    if(!pts.length){st("No coordinate could be read from that photo. Try a straighter, closer shot of the data strip, or type it in.");return}
+    if(pts.every(p=>p.tag==="ACFT")){st("Only the AIRCRAFT position could be read — the target line is not legible. Retake the photo straighter and closer to the screen, or type the target in.");
+      $("inp").value=pts.map(p=>p.line).join("\n");return}
+    $("inp").value=pts.map(p=>p.line).join("\n");     // what was read, in the box, so it can be checked and edited
+    st("");
+    if(pts.length===1){$("pickcard").classList.add("hide");showFix(pts[0]);return}
+    CANDIDATES=pts;$("pickcard").classList.remove("hide");
+    $("pickcard").querySelector(".lab").textContent=`${pts.length} coordinates read from the photo — TGT selected`;
+    $("pts").innerHTML=pts.map((p,i)=>`<li data-i="${i}"${i===0?' class="sel"':''}><b>${p.tag||"Coordinate "+(i+1)}${p.tag==="ACFT"?" — aircraft, not target":""}</b>`+
+      `${toMGRS(p.lat,p.lon)} · ${p.n} of ${runs} passes · ${p.line.slice(0,50)}</li>`).join("");
+    for(const li of $("pts").children)li.onclick=()=>{for(const o of $("pts").children)o.classList.remove("sel");
+      li.classList.add("sel");showFix(CANDIDATES[+li.dataset.i])};
+    showFix(pts[0]);
+  }catch(e){st("Could not read that photo: "+(e.message||e))}
+  finally{btn.disabled=false;btn.textContent=was}}
+
+$("ocrbtn").onclick=()=>$("ocrfile").click();
+$("ocrfile").onchange=e=>{const f=e.target.files[0];e.target.value="";if(f)readPhoto(f)};
+
 /* input handling */
 let tmr=null;
 $("inp").addEventListener("input",()=>{clearTimeout(tmr);tmr=setTimeout(()=>{
@@ -1293,6 +1425,7 @@ $("filebtn").onclick=()=>$("file").click();
 $("file").onchange=async e=>{
   const f=e.target.files[0];e.target.value="";if(!f)return;
   $("perr").textContent="";
+  if(/^image\//.test(f.type)||/\.(jpe?g|png|webp|heic)$/i.test(f.name)){readPhoto(f);return}
   const pts=await parseFile(f);
   if(!pts.length){$("perr").textContent="No points found in that file.";return}
   if(pts.length===1){$("inp").value=`${pts[0].lat}, ${pts[0].lon}`;showFix(pts[0]);
