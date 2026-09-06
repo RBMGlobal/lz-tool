@@ -1,0 +1,31 @@
+{
+  "name": "LZ Brief BETA — RBM Global",
+  "short_name": "LZ Beta",
+  "description": "BETA build of the LZ Brief tool. Not for operational use — the live tool is at /lz-tool/.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#22222f",
+  "theme_color": "#22222f",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
