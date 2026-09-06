@@ -358,6 +358,21 @@ is unreachable. Bump `CACHE` in `sw.js` if a stale shell ever needs forcing out.
 
 ## Changes
 
+**6 Sep 2026 (late)** — one repair rule was destroying hemisphere-first lines.
+
+- **Fixed: a coordinate written hemisphere-first was thrown away by the repairs.**
+  `N 12°16'59.93" E 7°41'29.61"` parses correctly as it stands, but the rule that puts
+  a proper closing `"` on the seconds (`17.850°N` → `17.850"N`) was also eating the
+  space after it. Written hemisphere-first the letter following the seconds is the
+  *next* half's — so `59.93" E 7°…` became `59.93"E 7°…`, the two halves ran together,
+  the DMS pattern lost its separator and the whole line came back as nothing. The rule
+  now looks past that whitespace instead of consuming it; every case it was written for
+  still repairs. Found while checking whether a repair added to the PED tool was needed
+  here — it was not, but this was.
+- `cli/tests_parse.py` — 24 cases now: hemisphere-first with and without spaces around
+  the letters, and the two closing-mark repairs the fix had to leave working.
+- `sw.js` → `lz-brief-v10`.
+
 **6 Sep 2026 (evening)** — screen-photo reading rebuilt against a ten-photo set.
 Rob reported it "didn't work a lot of the time" and supplied ten photos of the client's
 GCS at different angles, resolutions and formats. It read three of them. It now reads
