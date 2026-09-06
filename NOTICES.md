@@ -15,6 +15,13 @@ The one bundled library is the OCR engine behind **Read a screen photo**, self-h
 | `vendor/tesseract-core-simd-lstm.wasm.js` | tesseract.js-core 5.1.1 — Tesseract OCR compiled to WebAssembly | Apache-2.0 |
 | `vendor/eng.traineddata.gz` | Tesseract English model, tessdata 4.0.0 (best, integer) | Apache-2.0 |
 
+The Apache-2.0 notice is `vendor/tesseract.min.js.LICENSE.txt`.
+
+Everything around the engine — finding the data strip, straightening the picture,
+cutting out the text lines, repairing the misreads and deciding which line is the
+target — is original, and mirrored in `cli/osdfind.py` and `cli/lzocr.py`. The CLI side
+of that uses **numpy** and **scipy** (both BSD-3-Clause); the browser side uses neither.
+
 OCR runs entirely on the device; the photo is never uploaded anywhere.
 
 ## Imagery and data services
