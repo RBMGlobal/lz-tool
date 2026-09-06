@@ -16,7 +16,7 @@ server logic. Nothing anyone enters leaves their own device.
 | `manifest.webmanifest` | Lets the page install to a phone or tablet home screen |
 | `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` | Home-screen icons |
 | `vendor/` | The on-device OCR engine behind *Read a screen photo* (Tesseract.js, ~7 MB) — see NOTICES.md |
-| `cli/` | Python version — batch runs, GPX/TAK files, PDF output |
+| `cli/` | Python version — batch runs, GPX/TAK files, PDF output. `tests_parse.py` is the parser + OCR-repair regression sweep; run it after any parser change |
 | `samples/` | Example output, so you can see what a crew receives |
 | `NOTICES.md` | Imagery sources, attribution and the licensing position |
 
@@ -101,27 +101,81 @@ this also accepts an image shared into the tool.
     ACFT: 11°55'31.051"N   7° 4'22.588"E   HMSL: 1650m
     TGT:  11°56'17.850"N   7° 3'54.491"E   HMSL: 514m   →  TGT is what gets selected
 
-How it reads: the OSD is light text on a dark strip, so the dark strips are found by row
-brightness, cut out and read on their own at four scales; every reading is pooled and a
-line is labelled **TGT** or **ACFT** by the words on it, TGT first. Both appear in the
-picker when both are read; a screen without a dark banner falls back to reading the
-whole frame. It is all on-device (Tesseract OCR compiled to WebAssembly, self-hosted
-alongside the page, ~7 MB fetched once and kept offline) — the photo is never uploaded.
+**How it reads.** The first version looked for a dark horizontal band and read that.
+Against ten photos of the client's GCS taken at different angles, resolutions and
+formats, it failed on most of them: in a real photo the screen is a bright rectangle
+inside a larger frame and the OSD is a *translucent* strip over daylight imagery, so its
+row average is nowhere near dark and the band is never found. What replaced it looks for
+the text itself.
 
-**Check the digits.** OCR reads a photo of a screen; it can misread. Four things make it
-safe enough to use in a hurry. The specific ways OCR mangles coordinate text — every one
-seen on a real photo — are repaired before parsing: a second `°` where the minute mark is
-(`7° 4°22.588"`), a dropped or space-read decimal point in the seconds (`54491"`,
-`22 588"`), `°` or `'` where the closing `"` should be. Anything still mangled cannot
-parse at all (seconds may not run into further digits), so it drops out rather than
-becoming a wrong fix. **The passes vote**: each strip is read at four scales, readings
-within 100 m of each other are one candidate, the one most passes agree on wins, and
-the badge says so — *3 of 4 passes agree*. And the text it read goes into the box above
-the result with an orange **verify against the screen** badge, with the satellite preview
-of the parsed point as the last check — if the screen shows a compound and the preview
-shows open bush, don't fly it. The aircraft's own position (**ACFT**) is shown in the
-picker when read, but is never selected for you; if only the ACFT line is legible the
-tool says so and asks for a better photo rather than offering the wrong point.
+1. **Character-shaped blobs.** The picture is thresholded against a local background —
+   both polarities, so light-on-dark and dark-on-light panels both work — and every
+   connected blob is measured. A character is small, no more than about three times as
+   wide as it is tall, and partly filled.
+2. **Blobs chained into lines.** Blobs of matching height sitting on a common baseline,
+   five or more in a row, are a line of text. The baseline is tracked as a *slope*: a
+   hand-held photo is a couple of degrees off level, and over the width of an OSD line
+   that is more drift than the text is tall. Vegetation makes blobs too, but it never
+   makes a row of five with matching heights and even spacing.
+3. **Fragments rejoined.** One OSD line is three columns with wide gaps between them, so
+   the latitude, the longitude and the altitude come out as separate runs and no run
+   carries a whole coordinate. Runs sharing a baseline and a text height are rejoined —
+   after the shape test, not by loosening it, which would let scenery in.
+4. **The picture straightened.** The tilt is measured off the best line by shearing its
+   row profile until it is most sharply peaked, and if it is worth correcting the whole
+   picture is rotated and detection run again. On the lowest-resolution photo in the set
+   this was the difference between nothing and a clean read.
+5. **Each line read on its own, three times.** Every line is cropped and blown up to 34,
+   52 and 80 px of text height, then the whole block is read again as a unit. The
+   recogniser is fussy about glyph size — on one photo the decimal point in the seconds
+   vanished at one scale and came back at another — so no single scale decides anything.
+
+**Which line is the target.** Labels are read where they can be read. Where they cannot,
+position decides: the JOUAV OSD is always two stacked lines, aircraft above, target
+below. This matters most on the Chinese build, which writes the labels as 本机位置 and
+目标位置 — an English model returns those as noise, so both lines come back unlabelled,
+the vote ties, and without the rule the tool could hand back the **aircraft's** position
+as the landing point. A position placed this way says so: *the target line by its
+position in the block — the label itself did not read*.
+
+**Check the digits.** OCR reads a photo of a screen; it can misread. Five things make it
+safe enough to use in a hurry.
+
+- **The known mangles are repaired before parsing** — every rule below was seen on a real
+  photo of this GCS: a second `°` where the minute mark is (`7° 4°22.588"`), a `"` where
+  the degree mark is (`5"19'20.218`), a dropped, space-read or comma-read decimal point
+  in the seconds (`54491"`, `22 588"`, `22,555"`), both separators lost at once on a
+  low-resolution shot (`5725533"`), `°` or `'` where the closing `"` should be, and the
+  letter-for-digit confusions `O`→0, `I`/`T`/`l`→1, `B`→8, `S`→5 *only where a digit sits
+  on each side*. The rule that recovers the most readings is the last one: OCR often
+  invents a character in the gap between the latitude and the longitude — a bracket, an
+  underscore, a full stop — and that alone splits the pair and throws away a line where
+  both halves read perfectly.
+- **Anything still mangled cannot parse at all** (seconds may not run into further
+  digits), so it drops out rather than becoming a wrong fix.
+- **The passes vote.** Readings within 100 m of each other are one candidate whatever
+  label they carried, the one most passes agree on wins, and the badge says so — *4 of 7
+  passes agree*. Votes beat a read label on purpose: a single pass that misread a digit
+  but did catch the word `TGT` must not outrank three passes that agree on the digits.
+  In testing, that ordering is what stopped a `7` read as a `1` — 650 km out — from being
+  offered as the answer.
+- **The text it read goes into the box** above the result with an orange **verify against
+  the screen** badge, and the satellite preview of the parsed point is the last check: if
+  the screen shows a compound and the preview shows open bush, don't fly it.
+- **The aircraft's own position is never selected for you.** It is listed when read; if
+  only the ACFT line is legible the tool says so and asks for a better photo rather than
+  offering the wrong point.
+
+Scored against the ten-photo set: **nine of the nine readable photos return the correct
+target as the top answer**, in 2–5 s each. The tenth is cropped so that the target's
+latitude is off the edge of the picture; it returns nothing, which is the right answer.
+Re-run the scoring after any change to the detector, the repairs or the ranking.
+
+RAW (`.DNG`), video (`.MOV`) and — on Android — `.HEIC` cannot be opened by a browser at
+all. Each now says which it is and what to send instead, rather than "not an image".
+
+It is all on-device (Tesseract OCR compiled to WebAssembly, self-hosted alongside the
+page, ~7 MB fetched once and kept offline) — the photo is never uploaded.
 
 ## Location formats it reads
 
@@ -303,6 +357,57 @@ the page with signal — the offline worker serves the cached copy only when the
 is unreachable. Bump `CACHE` in `sw.js` if a stale shell ever needs forcing out.
 
 ## Changes
+
+**6 Sep 2026 (evening)** — screen-photo reading rebuilt against a ten-photo set.
+Rob reported it "didn't work a lot of the time" and supplied ten photos of the client's
+GCS at different angles, resolutions and formats. It read three of them. It now reads
+**nine of the nine that are readable**, in 2–5 s each; the tenth is cropped so the
+target's latitude is off the picture and it correctly returns nothing.
+
+- **The band finder is gone.** Looking for a dark horizontal strip only works when the
+  OSD spans the whole picture. In a real photo the screen is a bright rectangle inside a
+  larger frame and the OSD is *translucent* over daylight imagery, so its row average is
+  never dark. Replaced with character-shaped-blob detection chained into text lines —
+  see *Reading a drone screen photo*. A second attempt, scoring rows by bright-stroke
+  density, is also recorded there: it drowned in vegetation on two photos.
+- **Baselines are tracked as slopes.** A hand-held photo runs a couple of degrees off
+  level, which over the width of an OSD line is more drift than the text is tall. With a
+  fixed test the line broke in the middle and handed `TGT:` to the row above — so the
+  target line came back unlabelled and the aircraft's line came back labelled `TGT`.
+- **The picture is straightened before reading.** The tilt is measured off the best text
+  line by shearing its row profile until it is most sharply peaked. On the lowest-
+  resolution photo in the set this was the difference between nothing and a clean read.
+- **Fragments are rejoined.** An OSD line is three widely spaced columns; each came out
+  as its own run, so no run carried a whole lat/lon pair and nothing parsed at all.
+- **The target is identified by position where the label cannot be read.** The OSD is
+  always aircraft above, target below. On the Chinese build (本机位置 / 目标位置) an
+  English model returns the labels as noise, both lines come back unlabelled, the vote
+  ties — and the tool could hand back the **aircraft's** position as the landing point.
+  Positions placed this way say so in the reading.
+- **Votes now beat a read label.** A single pass that misread a digit but did catch the
+  word `TGT` used to outrank three passes that agreed on the digits. That is how a `7`
+  read as a `1` — 650 km out — was briefly the top answer in testing.
+- **The block-level pass is scaled per line, not per block.** At a fixed 40 px a two-line
+  block gave the recogniser 20 px of text and it started inventing digits.
+- **More repairs, all from these photos**: `"` read as the degree mark (`5"19'20.218`),
+  comma decimals (`22,555"`), both separators lost at once (`5725533"`), `B`→8 and
+  `S`→5 between digits, and — the one that recovers the most readings — scrubbing the
+  character OCR invents in the gap between the latitude and the longitude, which alone
+  used to throw away a line where both halves read perfectly.
+- **Stops early** once two passes agree on a target, so a typical photo is 7 OCR passes
+  rather than 26.
+- **RAW, video and HEIC now say what they are** and what to send instead, rather than
+  "not an image". Eight `.DNG` and one `.MOV` in the supplied folder were part of the
+  original complaint.
+- **`cli/tests_parse.py`** — the parser and repair sweep is now a file that ships with
+  the tool instead of something re-typed each time. 20 cases, every one from something
+  that actually broke. Run it after any parser or repair change.
+- Detection is identical in the browser and the CLI: both were run over all ten photos
+  and agreed on skew angle and text blocks on every one.
+- `sw.js` → `lz-brief-v9`. The Tesseract engine and worker stay self-hosted in
+  `vendor/` — they were briefly base64-inlined into `index.html` to work around
+  GitHub refusing `worker.min.js`, but it accepts the file now and 270 KB of
+  base64 on every page load is a poor trade for crews who never touch OCR.
 
 **5 Sep 2026** — latest pass sharpness fix.
 - **Fixed: the LATEST PASS image could come out heavily blurred.** The level chooser
