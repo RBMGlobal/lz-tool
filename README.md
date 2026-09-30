@@ -1,5 +1,10 @@
 # LZ Brief
 
+> **Publication update (30 September 2026): beta only.** The normal version is offline.
+> Open https://rbmglobal.co.uk/lz-tool/beta/ . The old root address now redirects to beta.
+> Maintain the published app under `beta/`; keep the root redirect and retirement worker in place.
+> The normal implementation remains recoverable in Git history. Older instructions below describe that implementation.
+
 Landing-point imagery for helicopter crews. Turns a location in whatever format it
 arrived in into a wide-area-to-close-up series they can read in the cockpit, sent
 over WhatsApp. One self-contained HTML file — no build step, no dependencies, no
