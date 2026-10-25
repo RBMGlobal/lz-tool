@@ -4,8 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#22222f">
-<!-- BETA BUILD. Lives at /lz-tool/beta/. The live tool is one level up and is
-     not affected by anything here. -->
+<!-- BETA BUILD. The normal root redirects here; keep its retirement worker. -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
@@ -254,6 +253,9 @@ footer{color:var(--dim);font-size:12px;text-align:center;padding:18px 0 8px;line
 </div>
 <script>
 'use strict';
+// Imported names, filenames and remote metadata are text, never page markup.
+const escapeHTML=s=>String(s).replace(/[<>&'"]/g,c=>
+  ({"<":"&lt;",">":"&gt;","&":"&amp;","'":"&#39;",'"':"&quot;"}[c]));
 if("serviceWorker" in navigator&&location.protocol.startsWith("http"))
   addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 /* ─────────────────────────  MGRS / UTM (WGS84)  ───────────────────────── */
@@ -1106,13 +1108,13 @@ function showFix(f){
     `<dt>MGRS</dt><dd class="big tapcopy" data-c="${mg}">${mg}</dd>`+
     `<dt>DDM</dt><dd class="tapcopy" data-c="${ddm(f.lat,f.lon)}">${ddm(f.lat,f.lon)}</dd>`+
     `<dt>DD</dt><dd class="tapcopy" data-c="${f.lat.toFixed(6)}, ${f.lon.toFixed(6)}">${f.lat.toFixed(6)}, ${f.lon.toFixed(6)}</dd>`+
-    `<dt>DMS</dt><dd class="tapcopy" data-c="${dms(f.lat,f.lon)}">${dms(f.lat,f.lon)}</dd>`;
+    `<dt>DMS</dt><dd class="tapcopy" data-c="${escapeHTML(dms(f.lat,f.lon))}">${escapeHTML(dms(f.lat,f.lon))}</dd>`;
   for(const el of $("cd").querySelectorAll(".tapcopy"))
     el.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(el.dataset.c);
       const o=el.textContent;el.textContent="copied";setTimeout(()=>el.textContent=o,700)};
-  $("meta").innerHTML=`<span class="badge">read as ${f.src||"text"}</span>`+
-    (f.note?`<span class="badge warn">${f.note}</span>`:"")+
-    (f.label?`<span class="badge">${f.label}</span>`:"");
+  $("meta").innerHTML=`<span class="badge">read as ${escapeHTML(f.src||"text")}</span>`+
+    (f.note?`<span class="badge warn">${escapeHTML(f.note)}</span>`:"")+
+    (f.label?`<span class="badge">${escapeHTML(f.label)}</span>`:"");
   if(f.label&&!$("nm").value)$("nm").value=f.label;
   quickLook(f);metaLook(f)}
 
@@ -1130,7 +1132,7 @@ async function metaLook(f){
   WP_CAP=cap;WP_ADV=seasonAdvice(f.lat,cap.dt);
   const[age,days]=ageText(cap.dt);
   const adv=WP_ADV;
-  $("meta").innerHTML+=`<span class="badge ${days&&days>550?"warn":"ok"}">imagery ${cap.dateStr||"?"} · ${age}</span>`;
+  $("meta").innerHTML+=`<span class="badge ${days&&days>550?"warn":"ok"}">imagery ${escapeHTML(cap.dateStr||"?")} · ${escapeHTML(age)}</span>`;
   const n=document.createElement("div");
   n.className="note"+(adv.mismatch?" warn":"");n.textContent=adv.text;$("meta").appendChild(n)}
 
@@ -1225,7 +1227,7 @@ async function build(){
     showOut(lines);
     setProg("Ready — send it.",100)
   }catch(e){setProg("",0);
-    $("out").innerHTML=`<div class="card"><div class="err">Could not build the brief: ${e.message}. Check the connection and try again.</div></div>`}
+    $("out").innerHTML=`<div class="card"><div class="err">Could not build the brief: ${escapeHTML(e.message)}. Check the connection and try again.</div></div>`}
   finally{$("build").disabled=false}}
 
 const slug=s=>s.replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,28)||"LZ";
@@ -1244,7 +1246,7 @@ function showOut(text){
 
   for(const b of BUILT){
     const card=document.createElement("div");card.className="card";
-    card.innerHTML=`<label class="lab">${b.caption}</label>`;
+    card.innerHTML=`<label class="lab">${escapeHTML(b.caption)}</label>`;
     const w=document.createElement("div");w.className="prev";
     w.innerHTML='<span class="c n">N</span><span class="c s">S</span><span class="c w">W</span><span class="c e">E</span>';
     const im=new Image();im.src=b.canvas.toDataURL("image/jpeg",.9);b.dataUrl=im.src;
@@ -1789,7 +1791,7 @@ async function readPhoto(file){
     CANDIDATES=pts;$("pickcard").classList.remove("hide");
     $("pickcard").querySelector(".lab").textContent=`${pts.length} coordinates read from the photo — TGT selected`;
     $("pts").innerHTML=pts.map((p,i)=>`<li data-i="${i}"${i===0?' class="sel"':''}><b>${p.tag?p.tag.replace("?",""):"Coordinate "+(i+1)}${isA(p.tag)?" — aircraft, not target":p.tag==="TGT?"?" — placed by position":""}</b>`+
-      `${toMGRS(p.lat,p.lon)} · ${p.n} of ${runs} passes · ${p.line.slice(0,50)}</li>`).join("");
+      `${toMGRS(p.lat,p.lon)} · ${p.n} of ${runs} passes · ${escapeHTML(p.line.slice(0,50))}</li>`).join("");
     for(const li of $("pts").children)li.onclick=()=>{for(const o of $("pts").children)o.classList.remove("sel");
       li.classList.add("sel");showFix(CANDIDATES[+li.dataset.i])};
     showFix(pts[0]);
@@ -1816,8 +1818,8 @@ $("inp").addEventListener("input",()=>{clearTimeout(tmr);tmr=setTimeout(()=>{
   $("pickcard").querySelector(".lab").textContent=
     `${pts.length} coordinates in that message — pick one`;
   $("pts").innerHTML=pts.slice(0,40).map((p,i)=>
-    `<li data-i="${i}"${i===0?' class="sel"':''}><b>${p.label||"Coordinate "+(i+1)}</b>`+
-    `${toMGRS(p.lat,p.lon)} · ${p.src}</li>`).join("");
+    `<li data-i="${i}"${i===0?' class="sel"':''}><b>${escapeHTML(p.label||"Coordinate "+(i+1))}</b>`+
+    `${toMGRS(p.lat,p.lon)} · ${escapeHTML(p.src)}</li>`).join("");
   for(const li of $("pts").children)li.onclick=()=>{
     for(const o of $("pts").children)o.classList.remove("sel");
     li.classList.add("sel");showFix(CANDIDATES[+li.dataset.i])};
@@ -1832,14 +1834,16 @@ $("file").onchange=async e=>{
   const f=e.target.files[0];e.target.value="";if(!f)return;
   $("perr").textContent="";
   if(/^image\//.test(f.type)||/\.(jpe?g|png|webp|heic)$/i.test(f.name)){readPhoto(f);return}
-  const pts=await parseFile(f);
+  let pts;
+  try{pts=await parseFile(f)}
+  catch(error){$("perr").textContent="Could not read that file. Check the file is complete and try again.";return}
   if(!pts.length){$("perr").textContent="No points found in that file.";return}
   if(pts.length===1){$("inp").value=`${pts[0].lat}, ${pts[0].lon}`;showFix(pts[0]);
     $("pickcard").classList.add("hide");return}
   CANDIDATES=pts;$("pickcard").classList.remove("hide");
   $("pickcard").querySelector(".lab").textContent="Several points in that file — pick one";
   $("pts").innerHTML=pts.slice(0,40).map((p,i)=>
-    `<li data-i="${i}"><b>${p.label||"Point "+(i+1)}</b>${toMGRS(p.lat,p.lon)} · ${p.src}</li>`).join("");
+    `<li data-i="${i}"><b>${escapeHTML(p.label||"Point "+(i+1))}</b>${toMGRS(p.lat,p.lon)} · ${escapeHTML(p.src)}</li>`).join("");
   for(const li of $("pts").children)li.onclick=()=>{
     for(const o of $("pts").children)o.classList.remove("sel");
     li.classList.add("sel");showFix(CANDIDATES[+li.dataset.i]);

@@ -1,72 +1,91 @@
-/* LZ Brief offline worker — BETA BUILD, scope /lz-tool/beta/.
-   Cache storage is per-ORIGIN, not per-scope, so the shell cache name must
-   differ from the live build's or the two overwrite each other. OCR_CACHE is
-   deliberately the SAME name: identical immutable files, one download shared.
-   The app shell is cached so the tool opens with no signal. Satellite tiles and
-   metadata are deliberately NOT cached: stale imagery presented as current is the
-   exact failure this tool exists to prevent. With no signal you get the tool, the
-   parser, the grid conversions and the compass — on a blank map background. */
-const CACHE = "lz-brief-BETA-v1";   // must differ from the live shell cache
+/* Beta app shell only. Cache storage is shared by every page on this origin:
+   never cache unrelated pages, imagery, metadata or arbitrary vendor paths. */
+const CACHE = "lz-brief-BETA-v2";
+const BASE = new URL("./", self.location.href);
 const SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"
-];
-/* The OCR pack (Tesseract.js engine and worker, WASM core, English model —
-   about 7 MB) sits in its own cache so it survives app-shell version bumps and
-   is fetched once. Cached best-effort at install; if the download fails the app
-   still installs and the pack is cached the first time "Read a screen photo"
-   runs. */
+].map(path => new URL(path, BASE).href);
+const SHELL_URLS = new Set(SHELL);
+const DOCUMENTS = new Set([BASE.href, new URL("index.html", BASE).href]);
+// The app loads these existing shared assets from the parent directory.
 const OCR_CACHE = "lz-brief-ocr-v1";
 const OCR = [
-  "./vendor/tesseract.min.js", "./vendor/worker.min.js",
-  "./vendor/tesseract-core-simd-lstm.wasm.js", "./vendor/eng.traineddata.gz"
-];
+  "../vendor/tesseract.min.js", "../vendor/worker.min.js",
+  "../vendor/tesseract-core-simd-lstm.wasm.js", "../vendor/eng.traineddata.gz"
+].map(path => new URL(path, BASE).href);
+const OCR_URLS = new Set(OCR);
 
-self.addEventListener("install", e => {
-  e.waitUntil(Promise.all([
-    caches.open(CACHE).then(c => c.addAll(SHELL)),
-    caches.open(OCR_CACHE).then(c => Promise.all(OCR.map(u => c.add(u).catch(() => {}))))
+self.addEventListener("install", event => {
+  event.waitUntil(Promise.all([
+    caches.open(CACHE).then(cache => cache.addAll(SHELL)),
+    caches.open(OCR_CACHE).then(cache =>
+      Promise.all(OCR.map(url => cache.add(url).catch(() => {}))))
   ]).then(() => self.skipWaiting()));
 });
 
-self.addEventListener("activate", e => {
-  /* Only ever evict caches from THIS build's own family. Cache storage is
-     per-ORIGIN, not per-scope, so a blanket "delete everything that is not
-     mine" wipes the sibling build's offline shell: opening the beta would
-     leave a crew with no cached copy of the live tool, which is the one thing
-     the service worker exists to prevent. FAMILY covers this build's own older
-     versions and nothing else. */
-  const FAMILY = "lz-brief-BETA-";
-  e.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(keys
-        .filter(k => k.startsWith(FAMILY) && k !== CACHE)
-        .map(k => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
+self.addEventListener("activate", event => {
+  event.waitUntil(caches.keys()
+    .then(keys => Promise.all(keys
+      .filter(key => key.startsWith("lz-brief-BETA-") && key !== CACHE)
+      .map(key => caches.delete(key))))
+    .then(() => self.clients.claim()));
 });
 
-self.addEventListener("fetch", e => {
-  const req = e.request;
-  if (req.method !== "GET") return;
-  const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;      // tiles & metadata: always live
-
-  // the OCR pack never changes under one name: cache-first, fill on first use
-  if (url.pathname.includes("/vendor/")) {
-    e.respondWith(caches.open(OCR_CACHE).then(c => c.match(req).then(hit => hit ||
-      fetch(req).then(res => { if (res.ok) c.put(req, res.clone()); return res; }))));
-    return;
+async function remember(cache, key, response) {
+  // HTTP errors and redirects must not replace a working offline copy.
+  if (response.status === 200 && !response.redirected) {
+    // Quota/private-mode failures must not discard a successful network result.
+    try { await cache.put(key, response.clone()); } catch (_) {}
   }
+}
 
-  // network-first for the shell, so an update lands as soon as there is signal
-  e.respondWith(
-    fetch(req)
-      .then(res => {
-        const copy = res.clone();
-        caches.open(CACHE).then(c => c.put(req, copy));
-        return res;
-      })
-      .catch(() => caches.match(req).then(r => r || caches.match("./index.html")))
-  );
+async function cachedResponse(cache, key) {
+  try { return cache && await cache.match(key); } catch (_) { return undefined; }
+}
+
+async function shellResponse(request, key) {
+  // Cache storage may be unavailable even when the service worker is running.
+  const cache = await caches.open(CACHE).catch(() => null);
+  const cached = async () => await cachedResponse(cache, key) ||
+    (request.mode === "navigate" && DOCUMENTS.has(key)
+      ? await cachedResponse(cache, new URL("index.html", BASE).href) : undefined);
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      if (cache) await remember(cache, key, response);
+      return response;
+    }
+    return await cached() || response;
+  } catch (error) {
+    const fallback = await cached();
+    if (fallback) return fallback;
+    throw error;
+  }
+}
+
+async function sharedAssetResponse(request, key) {
+  const cache = await caches.open(OCR_CACHE).catch(() => null);
+  const hit = await cachedResponse(cache, key);
+  if (hit) return hit;
+  const response = await fetch(request);
+  if (cache) await remember(cache, key, response);
+  return response;
+}
+
+self.addEventListener("fetch", event => {
+  const request = event.request;
+  if (request.method !== "GET" || request.headers.has("range")) return;
+  const url = new URL(request.url);
+  if (url.origin !== BASE.origin) return;
+  // Ignore query strings only for known static files: one bounded cache entry
+  // per asset, including home-screen and cache-busting navigation URLs.
+  url.search = "";
+  url.hash = "";
+  const key = url.href;
+  if (OCR_URLS.has(key)) {
+    event.respondWith(sharedAssetResponse(request, key));
+  } else if (SHELL_URLS.has(key)) {
+    event.respondWith(shellResponse(request, key));
+  }
 });
