@@ -1,7 +1,7 @@
 {
   "name": "LZ Brief BETA — RBM Global",
   "short_name": "LZ Beta",
-  "description": "BETA build of the LZ Brief tool. Not for operational use — the live tool is at /lz-tool/.",
+  "description": "BETA build of the LZ Brief tool. Not for operational use. The normal version is retired.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

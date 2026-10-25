@@ -1,24 +1,21 @@
 # LZ Brief — BETA
 
-> **This is the beta build.** It lives at `rbmglobal.co.uk/lz-tool/beta/`. The
-> live tool is one level up at `rbmglobal.co.uk/lz-tool/`, and nothing in this
-> folder changes it. The header carries a BETA chip; there is no banner.
+> **Beta is the published build.** It lives at `rbmglobal.co.uk/lz-tool/beta/`.
+> The normal root redirects here. Preserve the root redirect and retirement
+> worker; do not promote this folder over them.
 >
-> What is different here: RBM Global branding (see the 6 Sep entry under
-> *Changes*). Everything else — the parser, the imagery pipeline, the screen-photo
-> reader, the exports — is the same code as the live build.
+> The shared files remain in `../vendor/`. The beta worker only caches its
+> listed app-shell files and those shared files, and only evicts its own
+> `lz-brief-BETA-*` shell caches. Other RBM pages and their caches are untouched.
 >
-> Two deliberate choices make the two coexist safely on one origin:
-> * The OCR pack is loaded from `../vendor/`, so the beta shares the live build's
->   7 MB download instead of duplicating it in the repo.
-> * The service worker caches under `lz-brief-BETA-*` and only ever evicts caches
->   with that prefix. Cache storage is per-origin, not per-scope: a blanket
->   "delete what is not mine" would wipe the live tool's offline copy, which is
->   the one thing the service worker exists to prevent.
->
-> To promote this to live: copy these files over the repo root, restore
-> `vendor/` to `vendor/` in `ocrEngine`, drop the beta banner and chip, and set
-> the manifest name back.
+> Offline readiness still requires a successful first online load; imagery and
+> remote metadata are intentionally never stored by the worker.
+
+## Browser reliability checks
+
+Run `node --test tests/*.test.cjs` from the repository root. These checks cover
+cache isolation, HTTP failures, offline asset responses, and untrusted display
+text. They do not validate aviation calculations or OCR accuracy.
 
 
 Landing-point imagery for helicopter crews. Turns a location in whatever format it
